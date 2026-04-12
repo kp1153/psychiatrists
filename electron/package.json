@@ -1,0 +1,26 @@
+{
+  "name": "psychiatrist-pro",
+  "version": "1.0.0",
+  "description": "Psychiatrist Pro - Clinic Management",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "in.nishantsoftwares.psychiatristpro",
+    "productName": "Psychiatrist Pro",
+    "win": {
+      "target": "nsis",
+      "icon": "../public/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}
