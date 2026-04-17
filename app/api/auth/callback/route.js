@@ -31,13 +31,17 @@ export async function GET(request) {
     let clinic = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
 
     if (clinic.length === 0) {
-      const inserted = await db.insert(clinics).values({
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 7);
+      await db.insert(clinics).values({
         name: user.name,
         email: user.email,
         google_id: user.id,
+        status: 'trial',
+        expiry_date: expiry.toISOString(),
         active: 0,
-      }).returning();
-      clinic = inserted;
+      });
+      clinic = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
     }
 
     const token = await createSession({
@@ -45,15 +49,30 @@ export async function GET(request) {
       name: clinic[0].name,
       email: clinic[0].email,
       active: clinic[0].active,
+      status: clinic[0].status,
+      expiry_date: clinic[0].expiry_date,
+      role: 'doctor',
     });
 
     await setSessionCookie(token);
 
-    if (!clinic[0].active) {
-      return NextResponse.redirect(new URL('/inactive', request.url));
+    // Whitelist — हमेशा allow
+    if (clinic[0].email === 'prasad.kamta@gmail.com') {
+      return NextResponse.redirect(new URL('/doctor', request.url));
     }
 
-    return NextResponse.redirect(new URL('/doctor', request.url));
+    if (clinic[0].active) {
+      return NextResponse.redirect(new URL('/doctor', request.url));
+    }
+
+    // Trial check — 7 दिन
+    const expiry = clinic[0].expiry_date ? new Date(clinic[0].expiry_date) : null;
+    if (expiry && new Date() < expiry) {
+      return NextResponse.redirect(new URL('/doctor', request.url));
+    }
+
+    return NextResponse.redirect(new URL('/expired', request.url));
+
   } catch (e) {
     console.error(e);
     return NextResponse.redirect(new URL('/login?error=failed', request.url));

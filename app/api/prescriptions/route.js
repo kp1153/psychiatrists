@@ -1,15 +1,17 @@
 import { db } from '@/lib/db.js';
 import { prescriptions, patients } from '@/lib/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
+import { getSession } from '@/lib/session.js';
 
 export async function GET(request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  const clinic_id = session.clinic_id;
   const { searchParams } = new URL(request.url);
-  const clinic_id = parseInt(searchParams.get('clinic_id'));
   const status = searchParams.get('status');
   const patient_id = searchParams.get('patient_id');
-
-  if (!clinic_id) return NextResponse.json({ error: 'clinic_id required' }, { status: 400 });
 
   const rows = await db.select({
     id: prescriptions.id,
@@ -37,9 +39,13 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { patient_id, complaints, clinic_id } = await request.json();
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  if (!patient_id || !clinic_id) {
+  const clinic_id = session.clinic_id;
+  const { patient_id, complaints } = await request.json();
+
+  if (!patient_id) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
 
