@@ -6,9 +6,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
-  const url = google.createAuthorizationURL(state, codeVerifier, [
-    'openid', 'email', 'profile'
-  ]);
+  const url = google.createAuthorizationURL(state, codeVerifier, ['openid', 'email', 'profile']);
 
   const cookieStore = await cookies();
   cookieStore.set('google_state', state, {

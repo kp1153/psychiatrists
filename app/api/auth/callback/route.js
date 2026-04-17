@@ -15,7 +15,7 @@ export async function GET(request) {
   const savedState = cookieStore.get('google_state')?.value;
   const codeVerifier = cookieStore.get('google_code_verifier')?.value;
 
-  if (!code || !state || state !== savedState) {
+  if (!code || !state || !savedState || state !== savedState) {
     return NextResponse.redirect(new URL('/login?error=invalid', request.url));
   }
 
@@ -28,42 +28,44 @@ export async function GET(request) {
     });
     const user = await userRes.json();
 
-    let clinic = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
+    let [clinic] = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
 
-    if (clinic.length === 0) {
+    if (!clinic) {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 7);
       await db.insert(clinics).values({
         name: user.name,
         email: user.email,
         google_id: user.id,
+        status: 'trial',
+        expiry_date: expiry.toISOString(),
         active: 0,
       });
-      clinic = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
+      [clinic] = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
     }
 
     const token = await createSession({
-      clinic_id: clinic[0].id,
-      name: clinic[0].name,
-      email: clinic[0].email,
-      active: clinic[0].active,
+      clinic_id: clinic.id,
+      name: clinic.name,
+      email: clinic.email,
+      active: clinic.active,
+      status: clinic.status,
+      expiry_date: clinic.expiry_date,
       role: 'doctor',
     });
 
     await setSessionCookie(token);
 
-    // Whitelist — हमेशा allow
-    if (clinic[0].email === 'prasad.kamta@gmail.com') {
+    if (clinic.email === 'prasad.kamta@gmail.com') {
       return NextResponse.redirect(new URL('/doctor', request.url));
     }
 
-    if (clinic[0].active) {
+    if (clinic.active) {
       return NextResponse.redirect(new URL('/doctor', request.url));
     }
 
-    // Trial check — created_at से 7 दिन
-    const createdAt = new Date(clinic[0].created_at.replace(' ', 'T'));
-    const diffDays = (new Date() - createdAt) / (1000 * 60 * 60 * 24);
-
-    if (diffDays <= 7) {
+    const expiry = clinic.expiry_date ? new Date(clinic.expiry_date) : null;
+    if (expiry && new Date() < expiry) {
       return NextResponse.redirect(new URL('/doctor', request.url));
     }
 
