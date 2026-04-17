@@ -9,8 +9,13 @@ export default function DoctorQueuePage() {
   async function fetchQueue() {
     setLoading(true);
     const res = await fetch('/api/prescriptions?status=pending');
+    if (!res.ok) {
+      if (res.status === 401) window.location.href = '/login';
+      setLoading(false);
+      return;
+    }
     const data = await res.json();
-    setQueue(data);
+    setQueue(Array.isArray(data) ? data : []);
     setLoading(false);
   }
 
