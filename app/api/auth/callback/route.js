@@ -23,18 +23,17 @@ export async function GET(request) {
     const tokens = await google.validateAuthorizationCode(code, codeVerifier);
     const accessToken = tokens.accessToken();
 
-    const userRes = await fetch(
-      fetch('https://openidconnect.googleapis.com/v1/userinfo')
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      },
-    );
+    // सुधारा हुआ fetch यहाँ है
+    const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    
     const user = await userRes.json();
 
     let [clinic] = await db
       .select()
       .from(clinics)
-      .where(eq(clinics.google_id, user.id));
+      .where(eq(clinics.google_id, user.id || user.sub)); // Google ID अक्सर 'sub' फील्ड में होती है
 
     if (!clinic) {
       const expiry = new Date();
@@ -42,7 +41,7 @@ export async function GET(request) {
       await db.insert(clinics).values({
         name: user.name,
         email: user.email,
-        google_id: user.id,
+        google_id: user.id || user.sub,
         status: "trial",
         expiry_date: expiry.toISOString(),
         active: 0,
@@ -50,7 +49,7 @@ export async function GET(request) {
       [clinic] = await db
         .select()
         .from(clinics)
-        .where(eq(clinics.google_id, user.id));
+        .where(eq(clinics.google_id, user.id || user.sub));
     }
 
     const token = await createSession({
@@ -80,7 +79,7 @@ export async function GET(request) {
 
     return NextResponse.redirect(new URL("/expired", request.url));
   } catch (e) {
-    console.error(e);
+    console.error("Auth Callback Error:", e);
     return NextResponse.redirect(new URL("/login?error=failed", request.url));
   }
 }
