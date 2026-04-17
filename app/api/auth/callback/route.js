@@ -31,14 +31,10 @@ export async function GET(request) {
     let clinic = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
 
     if (clinic.length === 0) {
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + 7);
       await db.insert(clinics).values({
         name: user.name,
         email: user.email,
         google_id: user.id,
-        status: 'trial',
-        expiry_date: expiry.toISOString(),
         active: 0,
       });
       clinic = await db.select().from(clinics).where(eq(clinics.google_id, user.id));
@@ -49,8 +45,6 @@ export async function GET(request) {
       name: clinic[0].name,
       email: clinic[0].email,
       active: clinic[0].active,
-      status: clinic[0].status,
-      expiry_date: clinic[0].expiry_date,
       role: 'doctor',
     });
 
@@ -65,9 +59,11 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/doctor', request.url));
     }
 
-    // Trial check — 7 दिन
-    const expiry = clinic[0].expiry_date ? new Date(clinic[0].expiry_date) : null;
-    if (expiry && new Date() < expiry) {
+    // Trial check — created_at से 7 दिन
+    const createdAt = new Date(clinic[0].created_at.replace(' ', 'T'));
+    const diffDays = (new Date() - createdAt) / (1000 * 60 * 60 * 24);
+
+    if (diffDays <= 7) {
       return NextResponse.redirect(new URL('/doctor', request.url));
     }
 

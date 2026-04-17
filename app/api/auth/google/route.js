@@ -11,8 +11,20 @@ export async function GET() {
   ]);
 
   const cookieStore = await cookies();
-  cookieStore.set('google_state', state, { httpOnly: true, maxAge: 600, path: '/' });
-  cookieStore.set('google_code_verifier', codeVerifier, { httpOnly: true, maxAge: 600, path: '/' });
+  cookieStore.set('google_state', state, {
+    httpOnly: true,
+    maxAge: 600,
+    path: '/',
+    sameSite: 'lax',
+    secure: true,
+  });
+  cookieStore.set('google_code_verifier', codeVerifier, {
+    httpOnly: true,
+    maxAge: 600,
+    path: '/',
+    sameSite: 'lax',
+    secure: true,
+  });
 
   return NextResponse.redirect(url);
 }
