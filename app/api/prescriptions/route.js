@@ -49,9 +49,8 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
 
-  const inserted = await db.insert(prescriptions)
-    .values({ patient_id, complaints: complaints || '', clinic_id })
-    .returning();
+  const result = await db.insert(prescriptions)
+    .values({ patient_id, complaints: complaints || '', clinic_id });
 
-  return NextResponse.json(inserted[0]);
+  return NextResponse.json({ id: Number(result.lastInsertRowid), patient_id, complaints: complaints || '', clinic_id });
 }
