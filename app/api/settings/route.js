@@ -4,9 +4,23 @@ import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/session.js';
 import { NextResponse } from 'next/server';
 
+const DEVELOPER_EMAIL = 'prasad.kamta@gmail.com';
+
+async function checkExpiry(session) {
+  if (session.email === DEVELOPER_EMAIL) return true;
+  if (session.role !== 'doctor') return true;
+  const [c] = await db.select().from(clinics).where(eq(clinics.id, session.clinic_id));
+  if (!c) return false;
+  if (c.active) return true;
+  const expiry = c.expiry_date ? new Date(c.expiry_date) : null;
+  if (expiry && new Date() < expiry) return true;
+  return false;
+}
+
 export async function PATCH(request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await checkExpiry(session))) return NextResponse.json({ error: 'expired' }, { status: 403 });
 
   const body = await request.json();
   const allowed = ['pin_receptionist', 'pin_pharmacy', 'name'];
@@ -15,17 +29,20 @@ export async function PATCH(request) {
     if (body[key] !== undefined) update[key] = body[key];
   }
 
-  const updated = await db.update(clinics)
+  await db.update(clinics)
     .set(update)
-    .where(eq(clinics.id, session.clinic_id))
-    .returning();
+    .where(eq(clinics.id, session.clinic_id));
 
-  return NextResponse.json(updated[0]);
+  const [updated] = await db.select().from(clinics)
+    .where(eq(clinics.id, session.clinic_id));
+
+  return NextResponse.json(updated);
 }
 
 export async function GET(request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await checkExpiry(session))) return NextResponse.json({ error: 'expired' }, { status: 403 });
 
   const result = await db.select().from(clinics)
     .where(eq(clinics.id, session.clinic_id));

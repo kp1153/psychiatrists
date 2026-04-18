@@ -30,6 +30,12 @@ export default function ReceptionistPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), phone: phone.trim() }),
       });
+      if (!patientRes.ok) {
+        if (patientRes.status === 401) { window.location.href = '/login'; return; }
+        if (patientRes.status === 403) { window.location.href = '/expired'; return; }
+        setError('Failed to register patient');
+        return;
+      }
       const patient = await patientRes.json();
 
       const prescRes = await fetch('/api/prescriptions', {
@@ -37,6 +43,12 @@ export default function ReceptionistPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patient_id: patient.id, complaints: complaints.trim() }),
       });
+      if (!prescRes.ok) {
+        if (prescRes.status === 401) { window.location.href = '/login'; return; }
+        if (prescRes.status === 403) { window.location.href = '/expired'; return; }
+        setError('Failed to create prescription');
+        return;
+      }
       const prescription = await prescRes.json();
 
       setSuccess({ patient, prescription });
