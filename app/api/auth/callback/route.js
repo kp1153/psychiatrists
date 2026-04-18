@@ -1,7 +1,7 @@
 import { google } from "@/lib/google.js";
 import { db } from "@/lib/db.js";
 import { clinics } from "@/lib/schema.js";
-import { createSession, setSessionCookie } from "@/lib/session.js";
+import { createSession, setSessionCookieOnResponse } from "@/lib/session.js";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -24,10 +24,13 @@ export async function GET(request) {
     const accessToken = tokens.accessToken();
 
     // सुधारा हुआ fetch यहाँ है
-    const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    
+    const userRes = await fetch(
+      "https://openidconnect.googleapis.com/v1/userinfo",
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+
     const user = await userRes.json();
 
     let [clinic] = await db
@@ -62,22 +65,24 @@ export async function GET(request) {
       role: "doctor",
     });
 
-    await setSessionCookie(token);
-
     if (clinic.email === "prasad.kamta@gmail.com") {
-      return NextResponse.redirect(new URL("/doctor", request.url));
+      const response = NextResponse.redirect(new URL("/doctor", request.url));
+      return setSessionCookieOnResponse(response, token);
     }
 
     if (clinic.active) {
-      return NextResponse.redirect(new URL("/doctor", request.url));
+      const response = NextResponse.redirect(new URL("/doctor", request.url));
+      return setSessionCookieOnResponse(response, token);
     }
 
     const expiry = clinic.expiry_date ? new Date(clinic.expiry_date) : null;
     if (expiry && new Date() < expiry) {
-      return NextResponse.redirect(new URL("/doctor", request.url));
+      const response = NextResponse.redirect(new URL("/doctor", request.url));
+      return setSessionCookieOnResponse(response, token);
     }
 
-    return NextResponse.redirect(new URL("/expired", request.url));
+    const response = NextResponse.redirect(new URL("/expired", request.url));
+    return setSessionCookieOnResponse(response, token);
   } catch (e) {
     console.error("Auth Callback Error:", e);
     return NextResponse.redirect(new URL("/login?error=failed", request.url));
