@@ -23,7 +23,6 @@ export async function GET(request) {
     const tokens = await google.validateAuthorizationCode(code, codeVerifier);
     const accessToken = tokens.accessToken();
 
-    // सुधारा हुआ fetch यहाँ है
     const userRes = await fetch(
       "https://openidconnect.googleapis.com/v1/userinfo",
       {
@@ -32,11 +31,12 @@ export async function GET(request) {
     );
 
     const user = await userRes.json();
+    const googleId = String(user.sub || user.id);
 
     let [clinic] = await db
       .select()
       .from(clinics)
-      .where(eq(clinics.google_id, user.id || user.sub)); // Google ID अक्सर 'sub' फील्ड में होती है
+      .where(eq(clinics.google_id, googleId));
 
     if (!clinic) {
       const expiry = new Date();
@@ -44,7 +44,7 @@ export async function GET(request) {
       await db.insert(clinics).values({
         name: user.name,
         email: user.email,
-        google_id: user.id || user.sub,
+        google_id: googleId,
         status: "trial",
         expiry_date: expiry.toISOString(),
         active: 0,
@@ -52,7 +52,7 @@ export async function GET(request) {
       [clinic] = await db
         .select()
         .from(clinics)
-        .where(eq(clinics.google_id, user.id || user.sub));
+        .where(eq(clinics.google_id, googleId));
     }
 
     const token = await createSession({
