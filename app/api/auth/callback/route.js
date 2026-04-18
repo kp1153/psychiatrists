@@ -32,6 +32,7 @@ export async function GET(request) {
 
     const user = await userRes.json();
     const googleId = String(user.sub || user.id);
+    console.log("DEBUG googleId:", JSON.stringify(googleId), "type:", typeof googleId, "length:", googleId.length);
 
     let [clinic] = await db
       .select()
