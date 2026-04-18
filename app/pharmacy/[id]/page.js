@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import BottomNav from '@/components/BottomNav';
 
 export default function PharmacyPrescriptionPage() {
   const { id } = useParams();
@@ -53,6 +54,7 @@ export default function PharmacyPrescriptionPage() {
   if (!prescription) return <p className="text-center mt-20 text-gray-400">Loading...</p>;
 
   return (
+    <>
     <main className="min-h-screen bg-orange-50 p-4 pb-20">
       <div className="max-w-lg mx-auto">
         <button onClick={() => router.back()} className="text-orange-700 text-sm mb-4 mt-2 flex items-center gap-1">
@@ -113,7 +115,9 @@ export default function PharmacyPrescriptionPage() {
             {saving ? 'Saving...' : 'Mark as Dispensed'}
           </button>
         )}
-      </div>
+ </div>
     </main>
+    <BottomNav role="pharmacy" />
+    </>
   );
 }
