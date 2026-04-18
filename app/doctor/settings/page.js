@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BottomNav from "@/components/BottomNav";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isFirst = searchParams.get("first") === "1";
@@ -178,5 +178,13 @@ export default function SettingsPage() {
       </main>
       <BottomNav role="doctor" />
     </>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<p className="text-center mt-20 text-gray-400">Loading...</p>}>
+      <SettingsContent />
+    </Suspense>
   );
 }
