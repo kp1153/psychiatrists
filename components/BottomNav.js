@@ -14,6 +14,7 @@ const NAV_BY_ROLE = {
   ],
   pharmacy: [
     { href: '/pharmacy', label: 'Queue', icon: '💊' },
+    { href: '/pharmacy/walkin', label: 'Walk-in', icon: '🛒' },
     { href: '/pharmacy/brands', label: 'Brands', icon: '🏷️' },
   ],
 };
