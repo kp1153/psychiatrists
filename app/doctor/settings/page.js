@@ -102,7 +102,7 @@ function SettingsContent() {
     return <p className="text-center mt-20 text-gray-400">Loading...</p>;
 
   return (
-    <main className="min-h-screen bg-emerald-50 p-4 pb-24">
+    <main className="min-h-screen bg-emerald-50 p-4 pb-32">
       <div className="max-w-md mx-auto">
         <h1 className="text-xl font-bold text-emerald-800 mt-4 mb-5">
           {isFirst ? "Setup Your Clinic" : "Settings"}
