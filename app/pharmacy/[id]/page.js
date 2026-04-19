@@ -148,7 +148,7 @@ export default function PharmacyPrescriptionPage() {
         }
       `}</style>
 
-      <main className="min-h-screen bg-orange-50 p-4 pb-24 no-print">
+      <main className="min-h-screen bg-orange-50 p-4 pb-36 no-print">
         <div className="max-w-md mx-auto">
           <button
             onClick={() => router.back()}
