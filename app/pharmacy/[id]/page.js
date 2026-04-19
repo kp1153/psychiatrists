@@ -43,6 +43,7 @@ export default function PharmacyPrescriptionPage() {
             timing: Array.isArray(m.timing) ? m.timing : [],
             duration: m.duration || "",
             food: m.food || "After food",
+            brand: m.brand || "",
             qty: m.qty || "",
             price: m.price || "",
             dispensed: m.dispensed || false,
@@ -150,6 +151,18 @@ export default function PharmacyPrescriptionPage() {
                     </div>
                   </div>
 
+                  <div className="mb-2">
+                    <label className="text-[10px] text-gray-500">Brand dispensed</label>
+                    <input
+                      type="text"
+                      value={m.brand}
+                      onChange={(e) => updateField(i, "brand", e.target.value)}
+                      disabled={done}
+                      placeholder="e.g. Nexito 10 / Zoloft / Rivotril"
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:bg-gray-100"
+                    />
+                  </div>
+
                   <div className="flex gap-2 mt-2">
                     <div className="flex-1">
                       <label className="text-[10px] text-gray-500">Qty</label>
@@ -251,7 +264,8 @@ export default function PharmacyPrescriptionPage() {
           <thead>
             <tr className="border-b-2 border-black">
               <th className="text-left py-2">#</th>
-              <th className="text-left py-2">Medicine</th>
+              <th className="text-left py-2">Salt</th>
+              <th className="text-left py-2">Brand</th>
               <th className="text-left py-2">Dose</th>
               <th className="text-right py-2">Qty</th>
               <th className="text-right py-2">Rate</th>
@@ -266,6 +280,7 @@ export default function PharmacyPrescriptionPage() {
                 <tr key={i} className="border-b border-gray-300">
                   <td className="py-2">{i + 1}</td>
                   <td className="py-2">{m.name}</td>
+                  <td className="py-2">{m.brand || "-"}</td>
                   <td className="py-2">{m.dose}</td>
                   <td className="text-right py-2">{m.qty || "-"}</td>
                   <td className="text-right py-2">{m.price ? `₹${p.toFixed(2)}` : "-"}</td>
@@ -276,7 +291,7 @@ export default function PharmacyPrescriptionPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-black font-bold">
-              <td colSpan={5} className="text-right py-2">Total</td>
+              <td colSpan={6} className="text-right py-2">Total</td>
               <td className="text-right py-2">₹{total.toFixed(2)}</td>
             </tr>
           </tfoot>

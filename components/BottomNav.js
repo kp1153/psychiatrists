@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 const NAV_BY_ROLE = {
   doctor: [
     { href: '/doctor', label: 'Queue', icon: '📋' },
+    { href: '/doctor/reminders', label: 'Reminders', icon: '🔔' },
     { href: '/doctor/h1-register', label: 'H1 Reg', icon: '📕' },
     { href: '/doctor/settings', label: 'Settings', icon: '⚙️' },
   ],
