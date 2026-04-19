@@ -9,16 +9,9 @@ const DURATIONS = ["3 days", "5 days", "7 days", "10 days", "14 days", "1 month"
 const FOOD_OPTIONS = ["After food", "Before food", "Empty stomach", "—"];
 
 const MSE_DEFAULT = {
-  appearance: "",
-  mood: "",
-  affect: "",
-  thought: "",
-  perception: "",
-  cognition: "",
-  insight: "",
-  judgement: "",
+  appearance: "", mood: "", affect: "", thought: "",
+  perception: "", cognition: "", insight: "", judgement: "",
 };
-
 const MOOD_OPTIONS = ["Euthymic", "Depressed", "Elated", "Anxious", "Irritable", "Labile"];
 const AFFECT_OPTIONS = ["Normal", "Blunted", "Flat", "Restricted", "Labile", "Inappropriate"];
 const INSIGHT_OPTIONS = ["Grade I", "Grade II", "Grade III", "Grade IV", "Grade V", "Grade VI"];
@@ -40,9 +33,7 @@ function parseMeds(raw) {
       duration: m.duration || "7 days",
       food: m.food || "After food",
     })).filter((m) => m.name);
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 function parseMSE(raw) {
@@ -50,9 +41,11 @@ function parseMSE(raw) {
   try {
     const obj = JSON.parse(raw);
     return { ...MSE_DEFAULT, ...obj };
-  } catch {
-    return { ...MSE_DEFAULT };
-  }
+  } catch { return { ...MSE_DEFAULT }; }
+}
+
+function splitDoses(doseStr) {
+  return (doseStr || "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 export default function DoctorPrescriptionPage() {
@@ -74,6 +67,7 @@ export default function DoctorPrescriptionPage() {
   const [selectedCondition, setSelectedCondition] = useState("All");
   const [showPicker, setShowPicker] = useState(true);
   const [search, setSearch] = useState("");
+  const [expandedMed, setExpandedMed] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -116,9 +110,7 @@ export default function DoctorPrescriptionPage() {
     const arr = [];
     for (const cond of CONDITIONS) {
       const list = MEDICINES_BY_CONDITION[cond] || [];
-      for (const m of list) {
-        arr.push({ ...m, condition: cond });
-      }
+      for (const m of list) arr.push({ ...m, condition: cond });
     }
     return arr;
   }, []);
@@ -175,10 +167,10 @@ export default function DoctorPrescriptionPage() {
     });
   }
 
-  function addFromPicker(med) {
+  // picker से add — अब दवा + specific dose दोनों ज़रूरी
+  function addWithDose(med, chosenDose) {
     const displayName = `${med.name} (${(med.brand || "").split(",")[0].trim()})`;
-    const firstDose = (med.dose || "").split(",")[0].trim();
-    const newEntry = { name: displayName, dose: firstDose, timing: [], duration: "7 days", food: "After food" };
+    const newEntry = { name: displayName, dose: chosenDose, timing: [], duration: "7 days", food: "After food" };
     setMedicines((prev) => {
       const isEmptyFirst = prev.length === 1 && !prev[0].name && !prev[0].dose && prev[0].timing.length === 0;
       if (isEmptyFirst) return [newEntry];
@@ -186,6 +178,7 @@ export default function DoctorPrescriptionPage() {
       if (already) return prev;
       return [...prev, newEntry];
     });
+    setExpandedMed(null);
   }
 
   function doseOptionsFor(medName) {
@@ -193,9 +186,7 @@ export default function DoctorPrescriptionPage() {
     for (const cond of CONDITIONS) {
       const list = MEDICINES_BY_CONDITION[cond] || [];
       const hit = list.find((m) => m.name.toLowerCase() === base);
-      if (hit) {
-        return (hit.dose || "").split(",").map((s) => s.trim()).filter(Boolean);
-      }
+      if (hit) return splitDoses(hit.dose);
     }
     return [];
   }
@@ -340,26 +331,13 @@ export default function DoctorPrescriptionPage() {
               <div className="flex flex-col gap-3 mt-2">
                 <div>
                   <label className="text-xs text-gray-500">Appearance & Behaviour</label>
-                  <input
-                    type="text"
-                    value={mse.appearance}
-                    onChange={(e) => updateMSE("appearance", e.target.value)}
-                    placeholder="Well-kempt, cooperative..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
+                  <input type="text" value={mse.appearance} onChange={(e) => updateMSE("appearance", e.target.value)} placeholder="Well-kempt, cooperative..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">Mood</label>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {MOOD_OPTIONS.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => updateMSE("mood", mse.mood === m ? "" : m)}
-                        className={`text-xs px-2 py-1 rounded-full border ${mse.mood === m ? "bg-emerald-500 text-white border-emerald-500" : "border-gray-300 text-gray-600"}`}
-                      >
-                        {m}
-                      </button>
+                      <button key={m} type="button" onClick={() => updateMSE("mood", mse.mood === m ? "" : m)} className={`text-xs px-2 py-1 rounded-full border ${mse.mood === m ? "bg-emerald-500 text-white border-emerald-500" : "border-gray-300 text-gray-600"}`}>{m}</button>
                     ))}
                   </div>
                 </div>
@@ -367,66 +345,33 @@ export default function DoctorPrescriptionPage() {
                   <label className="text-xs text-gray-500">Affect</label>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {AFFECT_OPTIONS.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => updateMSE("affect", mse.affect === m ? "" : m)}
-                        className={`text-xs px-2 py-1 rounded-full border ${mse.affect === m ? "bg-emerald-500 text-white border-emerald-500" : "border-gray-300 text-gray-600"}`}
-                      >
-                        {m}
-                      </button>
+                      <button key={m} type="button" onClick={() => updateMSE("affect", mse.affect === m ? "" : m)} className={`text-xs px-2 py-1 rounded-full border ${mse.affect === m ? "bg-emerald-500 text-white border-emerald-500" : "border-gray-300 text-gray-600"}`}>{m}</button>
                     ))}
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">Thought (form/content)</label>
-                  <input
-                    type="text"
-                    value={mse.thought}
-                    onChange={(e) => updateMSE("thought", e.target.value)}
-                    placeholder="Goal-directed, no delusions..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
+                  <input type="text" value={mse.thought} onChange={(e) => updateMSE("thought", e.target.value)} placeholder="Goal-directed, no delusions..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">Perception</label>
-                  <input
-                    type="text"
-                    value={mse.perception}
-                    onChange={(e) => updateMSE("perception", e.target.value)}
-                    placeholder="No hallucinations / AH present..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
+                  <input type="text" value={mse.perception} onChange={(e) => updateMSE("perception", e.target.value)} placeholder="No hallucinations / AH present..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">Cognition</label>
-                  <input
-                    type="text"
-                    value={mse.cognition}
-                    onChange={(e) => updateMSE("cognition", e.target.value)}
-                    placeholder="Oriented x3, MMSE 28/30..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
+                  <input type="text" value={mse.cognition} onChange={(e) => updateMSE("cognition", e.target.value)} placeholder="Oriented x3, MMSE 28/30..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-500">Insight</label>
-                    <select
-                      value={mse.insight}
-                      onChange={(e) => updateMSE("insight", e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none"
-                    >
+                    <select value={mse.insight} onChange={(e) => updateMSE("insight", e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none">
                       <option value="">—</option>
                       {INSIGHT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">Judgement</label>
-                    <select
-                      value={mse.judgement}
-                      onChange={(e) => updateMSE("judgement", e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none"
-                    >
+                    <select value={mse.judgement} onChange={(e) => updateMSE("judgement", e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none">
                       <option value="">—</option>
                       {JUDGEMENT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
@@ -438,13 +383,7 @@ export default function DoctorPrescriptionPage() {
 
           <div className="bg-white rounded-2xl shadow p-4 mb-4">
             <label className="block font-semibold text-gray-700 mb-2">Tests / Investigations</label>
-            <textarea
-              value={tests}
-              onChange={(e) => setTests(e.target.value)}
-              placeholder="e.g. CBC, LFT, TSH, Fasting sugar..."
-              rows={2}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            />
+            <textarea value={tests} onChange={(e) => setTests(e.target.value)} placeholder="e.g. CBC, LFT, TSH, Fasting sugar..." rows={2} className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           </div>
 
           <div className="bg-white rounded-2xl shadow p-4 mb-4">
@@ -457,62 +396,80 @@ export default function DoctorPrescriptionPage() {
 
             {showPicker && (
               <>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search any medicine (name / brand / class)..."
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
+                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search any medicine (name / brand / class)..." className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
 
                 <div className="flex gap-1 overflow-x-auto mb-2 pb-1">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCondition("All")}
-                    className={`text-xs px-3 py-1 rounded-full whitespace-nowrap border ${selectedCondition === "All" ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-300 text-gray-600"}`}
-                  >
-                    All
-                  </button>
+                  <button type="button" onClick={() => setSelectedCondition("All")} className={`text-xs px-3 py-1 rounded-full whitespace-nowrap border ${selectedCondition === "All" ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-300 text-gray-600"}`}>All</button>
                   {CONDITIONS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setSelectedCondition(c)}
-                      className={`text-xs px-3 py-1 rounded-full whitespace-nowrap border ${selectedCondition === c ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-300 text-gray-600"}`}
-                    >
-                      {c}
-                    </button>
+                    <button key={c} type="button" onClick={() => setSelectedCondition(c)} className={`text-xs px-3 py-1 rounded-full whitespace-nowrap border ${selectedCondition === c ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-300 text-gray-600"}`}>{c}</button>
                   ))}
                 </div>
 
-                <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+                <p className="text-[11px] text-gray-500 mb-2">Tap a medicine to pick its dose →</p>
+
+                <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
                   {filteredPicker.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-4">No match. Try another keyword.</p>
+                    <p className="text-xs text-gray-400 text-center py-4">No match.</p>
                   )}
                   {filteredPicker.map((med, idx) => {
+                    const key = `${med.condition}-${med.name}-${idx}`;
                     const isAdded = addedNames.has(med.name.toLowerCase());
+                    const isExpanded = expandedMed === key;
+                    const doses = splitDoses(med.dose);
+
                     return (
-                      <button
-                        key={`${med.condition}-${med.name}-${idx}`}
-                        type="button"
-                        onClick={() => addFromPicker(med)}
-                        disabled={isAdded}
-                        className={`text-left border rounded-lg px-3 py-2 transition ${isAdded ? "bg-emerald-50 border-emerald-300 opacity-70" : "border-gray-200 hover:bg-indigo-50 active:scale-[0.98]"}`}
-                      >
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-gray-800 truncate flex items-center gap-1">
-                              {isAdded && <span className="text-emerald-600">✓</span>}
-                              {med.name}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">{med.brand}</p>
+                      <div key={key} className={`border rounded-lg transition ${isAdded ? "bg-emerald-50 border-emerald-300" : isExpanded ? "bg-indigo-50 border-indigo-400" : "border-gray-200"}`}>
+                        <button
+                          type="button"
+                          onClick={() => !isAdded && setExpandedMed(isExpanded ? null : key)}
+                          disabled={isAdded}
+                          className="w-full text-left px-3 py-2"
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-gray-800 truncate flex items-center gap-1">
+                                {isAdded && <span className="text-emerald-600">✓</span>}
+                                {med.name}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">{med.brand}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-[10px] text-gray-400">{med.class}</p>
+                              <p className="text-[10px] text-gray-400">{med.condition}</p>
+                            </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-xs font-semibold text-indigo-700">{med.dose}</p>
-                            <p className="text-[10px] text-gray-400">{med.condition}</p>
+                        </button>
+
+                        {isExpanded && !isAdded && doses.length > 0 && (
+                          <div className="px-3 pb-3 pt-1 border-t border-indigo-200">
+                            <p className="text-[11px] text-gray-600 mb-2">Select dose to add:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {doses.map((d) => (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  onClick={() => addWithDose(med, d)}
+                                  className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-indigo-700"
+                                >
+                                  {d}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        )}
+
+                        {isExpanded && !isAdded && doses.length === 0 && (
+                          <div className="px-3 pb-3 pt-1 border-t border-indigo-200">
+                            <button
+                              type="button"
+                              onClick={() => addWithDose(med, "")}
+                              className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold"
+                            >
+                              Add (no default dose)
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -538,61 +495,31 @@ export default function DoctorPrescriptionPage() {
                       <button onClick={() => removeMedicine(i)} className="text-red-400 text-xs">Remove</button>
                     </div>
 
-                    <input
-                      type="text"
-                      value={med.name}
-                      onChange={(e) => updateMedicine(i, "name", e.target.value)}
-                      placeholder="Medicine name"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                    />
+                    <input type="text" value={med.name} onChange={(e) => updateMedicine(i, "name", e.target.value)} placeholder="Medicine name" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
 
                     <div className="flex gap-2">
                       {doseOpts.length > 0 && med.dose !== "__custom__" ? (
-                        <select
-                          value={doseOpts.includes(med.dose) ? med.dose : ""}
-                          onChange={(e) => updateMedicine(i, "dose", e.target.value)}
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                        >
+                        <select value={doseOpts.includes(med.dose) ? med.dose : ""} onChange={(e) => updateMedicine(i, "dose", e.target.value)} className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
                           <option value="">Select dose</option>
                           {doseOpts.map((d) => <option key={d} value={d}>{d}</option>)}
                           <option value="__custom__">Custom...</option>
                         </select>
                       ) : (
-                        <input
-                          type="text"
-                          value={med.dose === "__custom__" ? "" : med.dose}
-                          onChange={(e) => updateMedicine(i, "dose", e.target.value)}
-                          placeholder="Dose (e.g. 10mg)"
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                        />
+                        <input type="text" value={med.dose === "__custom__" ? "" : med.dose} onChange={(e) => updateMedicine(i, "dose", e.target.value)} placeholder="Dose (e.g. 10mg)" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400" />
                       )}
                     </div>
 
                     <div className="flex flex-wrap gap-1">
                       {MEDICINE_TIMINGS.map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => toggleTiming(i, t)}
-                          className={`text-xs px-2 py-1 rounded-full border transition ${med.timing.includes(t) ? "bg-emerald-500 text-white border-emerald-500" : "border-gray-300 text-gray-600"}`}
-                        >
-                          {t}
-                        </button>
+                        <button key={t} onClick={() => toggleTiming(i, t)} className={`text-xs px-2 py-1 rounded-full border transition ${med.timing.includes(t) ? "bg-emerald-500 text-white border-emerald-500" : "border-gray-300 text-gray-600"}`}>{t}</button>
                       ))}
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      <select
-                        value={med.food}
-                        onChange={(e) => updateMedicine(i, "food", e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none"
-                      >
+                      <select value={med.food} onChange={(e) => updateMedicine(i, "food", e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none">
                         {FOOD_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
                       </select>
-                      <select
-                        value={med.duration}
-                        onChange={(e) => updateMedicine(i, "duration", e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none"
-                      >
+                      <select value={med.duration} onChange={(e) => updateMedicine(i, "duration", e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none">
                         {DURATIONS.map((d) => <option key={d}>{d}</option>)}
                       </select>
                     </div>
@@ -604,12 +531,7 @@ export default function DoctorPrescriptionPage() {
 
           <div className="bg-white rounded-2xl shadow p-4 mb-4">
             <label className="block font-semibold text-gray-700 mb-2">Follow-up Date</label>
-            <input
-              type="date"
-              value={followupDate}
-              onChange={(e) => setFollowupDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            />
+            <input type="date" value={followupDate} onChange={(e) => setFollowupDate(e.target.value)} className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             <div className="flex flex-wrap gap-1 mt-2">
               <button type="button" onClick={() => quickFollowup(7)} className="text-xs border border-gray-300 rounded-full px-3 py-1 text-gray-600">+7d</button>
               <button type="button" onClick={() => quickFollowup(14)} className="text-xs border border-gray-300 rounded-full px-3 py-1 text-gray-600">+2w</button>
@@ -618,21 +540,13 @@ export default function DoctorPrescriptionPage() {
               <button type="button" onClick={() => setFollowupDate("")} className="text-xs border border-gray-300 rounded-full px-3 py-1 text-gray-600">Clear</button>
             </div>
             {followupDate && (
-              <p className="text-xs text-emerald-700 mt-2">
-                Reminder will be sent to patient on {followupDate}
-              </p>
+              <p className="text-xs text-emerald-700 mt-2">Reminder will be sent to patient on {followupDate}</p>
             )}
           </div>
 
           <div className="bg-white rounded-2xl shadow p-4 mb-4">
             <label className="block font-semibold text-gray-700 mb-2">Doctor Notes / Advice</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Follow-up instructions, diet advice..."
-              rows={3}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Follow-up instructions, diet advice..." rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           </div>
 
           {saved && (
