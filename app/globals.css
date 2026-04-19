@@ -7,3 +7,9 @@
 body {
   font-family: var(--font-baloo);
 }
+
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  body { background: white !important; }
+}

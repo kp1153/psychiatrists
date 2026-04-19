@@ -20,6 +20,7 @@ function SettingsContent() {
   const [showPinP, setShowPinP] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [logo, setLogo] = useState("");
 
   useEffect(() => {
     fetch("/api/settings")
@@ -38,8 +39,21 @@ function SettingsContent() {
         setClinicPhone(data.clinic_phone || "");
         setPinR(data.pin_receptionist || "");
         setPinP(data.pin_pharmacy || "");
+        setLogo(data.clinic_logo || "");
       });
   }, []);
+
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 200 * 1024) {
+      alert("Logo must be under 200KB. Please compress it first.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogo(ev.target.result);
+    reader.readAsDataURL(file);
+  }
 
   async function handleSave() {
     if (pinR.length !== 4 || pinP.length !== 4) {
@@ -62,17 +76,12 @@ function SettingsContent() {
         clinic_phone: clinicPhone,
         pin_receptionist: pinR,
         pin_pharmacy: pinP,
+        clinic_logo: logo,
       }),
     });
     setSaving(false);
-    if (!res.ok) {
-      alert("Save failed. Try again.");
-      return;
-    }
-    if (isFirst) {
-      window.location.href = "/doctor";
-      return;
-    }
+    if (!res.ok) { alert("Save failed. Try again."); return; }
+    if (isFirst) { window.location.href = "/doctor"; return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -81,186 +90,166 @@ function SettingsContent() {
     return <p className="text-center mt-20 text-gray-400">Loading...</p>;
 
   return (
-    <>
-      <main className="min-h-screen bg-gray-50 p-4 pb-20">
-        <div className="max-w-md mx-auto">
-          {!isFirst && (
-            <button
-              onClick={() => router.back()}
-              className="text-indigo-700 text-sm mb-4 mt-2"
-            >
-              ← Back
-            </button>
+    <main className="min-h-screen bg-emerald-50 p-4 pb-24">
+      <div className="max-w-md mx-auto">
+        <h1 className="text-xl font-bold text-emerald-800 mt-4 mb-5">
+          {isFirst ? "Setup Your Clinic" : "Settings"}
+        </h1>
+
+        {/* Clinic Logo */}
+        <div className="bg-white rounded-2xl shadow p-4 mb-4">
+          <p className="font-semibold text-gray-700 mb-3">Clinic Logo</p>
+          {logo ? (
+            <div className="flex flex-col items-center gap-3">
+              <img
+                src={logo}
+                alt="Clinic logo"
+                className="h-20 object-contain rounded-lg border border-gray-200"
+              />
+              <button
+                type="button"
+                onClick={() => setLogo("")}
+                className="text-xs text-red-400"
+              >
+                Remove logo
+              </button>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-6 cursor-pointer hover:border-emerald-400 transition">
+              <span className="text-2xl mb-1">🖼️</span>
+              <span className="text-sm text-gray-500">Tap to upload logo</span>
+              <span className="text-xs text-gray-400 mt-1">Max 200KB · PNG/JPG</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoChange}
+              />
+            </label>
           )}
-
-          {isFirst && (
-            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 mb-4 mt-2">
-              <p className="font-semibold text-amber-900 text-sm">
-                Welcome! Please complete your clinic setup.
-              </p>
-              <p className="text-xs text-amber-800 mt-1">
-                Fill clinic details and set staff PINs. Share Clinic ID + PINs
-                with receptionist and pharmacy staff.
-              </p>
-            </div>
-          )}
-
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Settings</h1>
-
-          {/* Clinic ID */}
-          <div className="bg-white rounded-2xl shadow p-5 mb-4">
-            <p className="text-xs text-gray-400 mb-1">Clinic ID (share with staff)</p>
-            <div className="bg-indigo-50 text-indigo-800 font-bold text-2xl text-center py-3 rounded-xl tracking-widest">
-              {clinic.id}
-            </div>
-          </div>
-
-          {/* Clinic Details */}
-          <div className="bg-white rounded-2xl shadow p-5 mb-4 flex flex-col gap-4">
-            <p className="font-semibold text-gray-700 text-sm">Clinic Details</p>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Clinic Name
-              </label>
-              <input
-                type="text"
-                value={clinicName}
-                onChange={(e) => setClinicName(e.target.value)}
-                placeholder="e.g. City Mind Clinic"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Doctor Name
-              </label>
-              <input
-                type="text"
-                value={doctorName}
-                onChange={(e) => setDoctorName(e.target.value)}
-                placeholder="e.g. Dr. Rajesh Kumar"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Qualification
-              </label>
-              <input
-                type="text"
-                value={qualification}
-                onChange={(e) => setQualification(e.target.value)}
-                placeholder="e.g. MBBS, MD (Psychiatry)"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Clinic Phone
-              </label>
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={clinicPhone}
-                onChange={(e) => setClinicPhone(e.target.value)}
-                placeholder="e.g. 9876543210"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Clinic Address
-              </label>
-              <textarea
-                value={clinicAddress}
-                onChange={(e) => setClinicAddress(e.target.value)}
-                placeholder="e.g. 12, Gandhi Nagar, Varanasi - 221001"
-                rows={2}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-              />
-            </div>
-          </div>
-
-          {/* Staff PINs */}
-          <div className="bg-white rounded-2xl shadow p-5 mb-4 flex flex-col gap-4">
-            <p className="font-semibold text-gray-700 text-sm">Staff PINs</p>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Receptionist PIN
-              </label>
-              <div className="relative">
-                <input
-                  type={showPinR ? "text" : "password"}
-                  value={pinR}
-                  onChange={(e) => setPinR(e.target.value)}
-                  maxLength={4}
-                  placeholder="4-digit PIN"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPinR((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xl"
-                >
-                  {showPinR ? "🙈" : "👁️"}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">
-                Pharmacy PIN
-              </label>
-              <div className="relative">
-                <input
-                  type={showPinP ? "text" : "password"}
-                  value={pinP}
-                  onChange={(e) => setPinP(e.target.value)}
-                  maxLength={4}
-                  placeholder="4-digit PIN"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPinP((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xl"
-                >
-                  {showPinP ? "🙈" : "👁️"}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {saved && (
-            <p className="text-green-600 text-sm text-center mb-3">
-              ✓ Saved successfully
-            </p>
-          )}
-
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-semibold text-base hover:bg-indigo-700 disabled:opacity-60 transition mb-4"
-          >
-            {saving ? "Saving..." : "Save Settings"}
-          </button>
-
-          <a
-            href="/api/auth/logout"
-            className="block text-center text-sm text-red-400 hover:text-red-600 transition"
-          >
-            Logout
-          </a>
         </div>
-      </main>
-      <BottomNav role="doctor" />
-    </>
+
+        {/* Doctor Info */}
+        <div className="bg-white rounded-2xl shadow p-4 mb-4 flex flex-col gap-3">
+          <p className="font-semibold text-gray-700">Doctor / Clinic Info</p>
+          <div>
+            <label className="text-xs text-gray-500">Clinic Name</label>
+            <input
+              type="text"
+              value={clinicName}
+              onChange={(e) => setClinicName(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Doctor Name</label>
+            <input
+              type="text"
+              value={doctorName}
+              onChange={(e) => setDoctorName(e.target.value)}
+              placeholder="Dr. Firstname Lastname"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Qualification</label>
+            <input
+              type="text"
+              value={qualification}
+              onChange={(e) => setQualification(e.target.value)}
+              placeholder="MBBS, MD (Psychiatry)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Clinic Address</label>
+            <textarea
+              value={clinicAddress}
+              onChange={(e) => setClinicAddress(e.target.value)}
+              rows={2}
+              placeholder="Full address"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400 mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Phone</label>
+            <input
+              type="tel"
+              value={clinicPhone}
+              onChange={(e) => setClinicPhone(e.target.value)}
+              placeholder="Clinic contact number"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 mt-1"
+            />
+          </div>
+        </div>
+
+        {/* PINs */}
+        <div className="bg-white rounded-2xl shadow p-4 mb-4 flex flex-col gap-3">
+          <p className="font-semibold text-gray-700">Staff PINs</p>
+          <div>
+            <label className="text-xs text-gray-500">Receptionist PIN</label>
+            <div className="flex gap-2 mt-1">
+              <input
+                type={showPinR ? "text" : "password"}
+                value={pinR}
+                onChange={(e) => setPinR(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                maxLength={4}
+                inputMode="numeric"
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinR((p) => !p)}
+                className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3"
+              >
+                {showPinR ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Pharmacy PIN</label>
+            <div className="flex gap-2 mt-1">
+              <input
+                type={showPinP ? "text" : "password"}
+                value={pinP}
+                onChange={(e) => setPinP(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                maxLength={4}
+                inputMode="numeric"
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinP((p) => !p)}
+                className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3"
+              >
+                {showPinP ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {saved && (
+          <div className="bg-green-50 border border-green-200 text-green-800 text-sm rounded-xl p-3 mb-3 text-center">
+            ✓ Settings saved
+          </div>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-semibold text-base hover:bg-indigo-700 disabled:opacity-60 transition mb-4"
+        >
+          {saving ? "Saving..." : "Save Settings"}
+        </button>
+
+        
+          href="/api/auth/logout"
+          className="block text-center text-sm text-red-400 hover:text-red-600 transition"
+        >
+          Logout
+        </a>
+      </div>
+    </main>
   );
 }
 
@@ -268,6 +257,7 @@ export default function SettingsPage() {
   return (
     <Suspense fallback={<p className="text-center mt-20 text-gray-400">Loading...</p>}>
       <SettingsContent />
+      <BottomNav role="doctor" />
     </Suspense>
   );
 }

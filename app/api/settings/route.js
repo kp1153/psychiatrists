@@ -24,7 +24,11 @@ export async function PATCH(request) {
   if (!(await checkExpiry(session))) return NextResponse.json({ error: 'expired' }, { status: 403 });
 
   const body = await request.json();
-  const allowed = ['pin_receptionist', 'pin_pharmacy', 'name', 'doctor_name', 'qualification', 'clinic_address', 'clinic_phone'];
+  const allowed = [
+    'pin_receptionist', 'pin_pharmacy', 'name',
+    'doctor_name', 'qualification', 'clinic_address', 'clinic_phone',
+    'clinic_logo',
+  ];
   const update = {};
   for (const key of allowed) {
     if (body[key] !== undefined) update[key] = body[key];
