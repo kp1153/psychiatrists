@@ -25,8 +25,14 @@ function SettingsContent() {
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => {
-        if (r.status === 401) { window.location.href = "/login"; return null; }
-        if (r.status === 403) { window.location.href = "/expired"; return null; }
+        if (r.status === 401) {
+          window.location.href = "/login";
+          return null;
+        }
+        if (r.status === 403) {
+          window.location.href = "/expired";
+          return null;
+        }
         return r.json();
       })
       .then((data) => {
@@ -80,8 +86,14 @@ function SettingsContent() {
       }),
     });
     setSaving(false);
-    if (!res.ok) { alert("Save failed. Try again."); return; }
-    if (isFirst) { window.location.href = "/doctor"; return; }
+    if (!res.ok) {
+      alert("Save failed. Try again.");
+      return;
+    }
+    if (isFirst) {
+      window.location.href = "/doctor";
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -118,7 +130,9 @@ function SettingsContent() {
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-6 cursor-pointer hover:border-emerald-400 transition">
               <span className="text-2xl mb-1">🖼️</span>
               <span className="text-sm text-gray-500">Tap to upload logo</span>
-              <span className="text-xs text-gray-400 mt-1">Max 200KB · PNG/JPG</span>
+              <span className="text-xs text-gray-400 mt-1">
+                Max 200KB · PNG/JPG
+              </span>
               <input
                 type="file"
                 accept="image/*"
@@ -132,6 +146,10 @@ function SettingsContent() {
         {/* Doctor Info */}
         <div className="bg-white rounded-2xl shadow p-4 mb-4 flex flex-col gap-3">
           <p className="font-semibold text-gray-700">Doctor / Clinic Info</p>
+          <p className="text-xs text-gray-400">
+            Clinic ID: <strong className="text-gray-600">{clinic.id}</strong> —
+            Pharmacy/Receptionist login के लिए
+          </p>
           <div>
             <label className="text-xs text-gray-500">Clinic Name</label>
             <input
@@ -192,7 +210,9 @@ function SettingsContent() {
               <input
                 type={showPinR ? "text" : "password"}
                 value={pinR}
-                onChange={(e) => setPinR(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onChange={(e) =>
+                  setPinR(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
                 maxLength={4}
                 inputMode="numeric"
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -212,7 +232,9 @@ function SettingsContent() {
               <input
                 type={showPinP ? "text" : "password"}
                 value={pinP}
-                onChange={(e) => setPinP(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onChange={(e) =>
+                  setPinP(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
                 maxLength={4}
                 inputMode="numeric"
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -255,7 +277,9 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<p className="text-center mt-20 text-gray-400">Loading...</p>}>
+    <Suspense
+      fallback={<p className="text-center mt-20 text-gray-400">Loading...</p>}
+    >
       <SettingsContent />
       <BottomNav role="doctor" />
     </Suspense>
