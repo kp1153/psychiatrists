@@ -45,7 +45,7 @@ export async function PATCH(request, { params }) {
   if (!pid) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
   const body = await request.json();
-  const allowed = ['tests', 'mse', 'medicines', 'notes', 'followup_date', 'status'];
+  const allowed = ['complaints', 'diagnosis', 'tests', 'mse', 'medicines', 'notes', 'followup_date', 'status'];
   const update = {};
   for (const key of allowed) {
     if (body[key] !== undefined) update[key] = body[key];
