@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BottomNav from '@/components/BottomNav';
 
 export default function ReceptionistPage() {
@@ -9,6 +9,36 @@ export default function ReceptionistPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState('');
+  const [lookup, setLookup] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!/^\d{10}$/.test(phone)) {
+      setLookup(null);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/patients?phone=${phone}`);
+        if (cancelled) return;
+        if (res.ok) {
+          const arr = await res.json();
+          if (arr.length > 0) {
+            setLookup(arr[0]);
+            setName((prev) => prev || arr[0].name);
+          } else {
+            setLookup(null);
+          }
+        }
+      } catch {}
+      finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [phone]);
 
   async function handleSubmit() {
     if (!name.trim() || !phone.trim()) {
@@ -51,10 +81,11 @@ export default function ReceptionistPage() {
       }
       const prescription = await prescRes.json();
 
-      setSuccess({ patient, prescription });
+      setSuccess({ patient, prescription, isReturning: !!lookup });
       setName('');
       setPhone('');
       setComplaints('');
+      setLookup(null);
     } catch {
       setError('Something went wrong. Try again.');
     } finally {
@@ -70,24 +101,36 @@ export default function ReceptionistPage() {
 
           <div className="bg-white rounded-2xl shadow p-5 flex flex-col gap-4">
             <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Mobile Number</label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phone}
+                onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                placeholder="10-digit mobile number"
+                maxLength={10}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              {searching && <p className="text-xs text-gray-400 mt-1">Searching...</p>}
+              {lookup && !searching && (
+                <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-800">
+                  ✓ Returning patient: <strong>{lookup.name}</strong>
+                </div>
+              )}
+              {!lookup && !searching && /^\d{10}$/.test(phone) && (
+                <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800">
+                  New patient — enter name below
+                </div>
+              )}
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">Patient Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Enter full name"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Mobile Number</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="10-digit mobile number"
-                maxLength={10}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>
@@ -109,7 +152,9 @@ export default function ReceptionistPage() {
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
                 <p className="font-semibold">✓ Token #{success.prescription.id} created</p>
                 <p>{success.patient.name} — {success.patient.phone}</p>
-                <p className="text-xs text-gray-500 mt-1">Prescription sent to doctor queue</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {success.isReturning ? 'Returning patient — sent to doctor queue' : 'New patient — sent to doctor queue'}
+                </p>
               </div>
             )}
 
