@@ -1,3 +1,4 @@
+// app/doctor/page.js
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -22,40 +23,70 @@ export default function DoctorQueuePage() {
 
   async function fetchQueue(silent = false) {
     if (!silent) setLoading(true);
-    const res = await fetch('/api/prescriptions?status=pending');
-    if (!res.ok) {
-      if (res.status === 401) window.location.href = '/login';
-      if (res.status === 403) window.location.href = '/expired';
+    try {
+      const res = await fetch('/api/prescriptions?status=pending');
+      if (!res.ok) {
+        if (res.status === 401) { window.location.href = '/login'; return; }
+        if (res.status === 403) { window.location.href = '/expired'; return; }
+        setLoading(false);
+        return;
+      }
+      const data = await res.json();
+      const sorted = (Array.isArray(data) ? data : []).sort(
+        (a, b) => new Date(a.visit_date) - new Date(b.visit_date)
+      );
+      setQueue(sorted);
+      setLastRefresh(new Date());
+    } catch (e) {
+      console.error('fetchQueue error:', e);
+    } finally {
       setLoading(false);
-      return;
     }
-    const data = await res.json();
-    const sorted = (Array.isArray(data) ? data : []).sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date));
-    setQueue(sorted);
-    setLastRefresh(new Date());
-    setLoading(false);
   }
 
   useEffect(() => {
+    let interval;
+
     async function init() {
-      const s = await fetch('/api/settings');
-      if (s.status === 403) {
-        window.location.href = '/expired';
-        return;
-      }
-      if (s.ok) {
+      try {
+        const s = await fetch('/api/settings');
+
+        // Not logged in
+        if (s.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        // Trial expired
+        if (s.status === 403) {
+          window.location.href = '/expired';
+          return;
+        }
+        // Any other error
+        if (!s.ok) {
+          setLoading(false);
+          return;
+        }
+
         const data = await s.json();
-        if (data.pin_receptionist === '1234' && data.pin_pharmacy === '5678') {
+
+        // First-time setup: default PINs
+        if (data && data.pin_receptionist === '1234' && data.pin_pharmacy === '5678') {
           window.location.href = '/doctor/settings?first=1';
           return;
         }
-      }
-      fetchQueue();
-    }
-    init();
 
-    const interval = setInterval(() => fetchQueue(true), 15000);
-    return () => clearInterval(interval);
+        // All good — load queue and start auto-refresh
+        await fetchQueue();
+        interval = setInterval(() => fetchQueue(true), 15000);
+
+      } catch (e) {
+        console.error('Doctor init error:', e);
+        setLoading(false);
+      }
+    }
+
+    init();
+    return () => { if (interval) clearInterval(interval); };
   }, []);
 
   return (
@@ -64,19 +95,28 @@ export default function DoctorQueuePage() {
         <div className="max-w-md mx-auto">
           <div className="flex items-center justify-between mt-4 mb-2">
             <h1 className="text-2xl font-bold text-emerald-800">
-              Patient Queue {queue.length > 0 && <span className="text-lg text-emerald-600">({queue.length})</span>}
+              Patient Queue{' '}
+              {queue.length > 0 && (
+                <span className="text-lg text-emerald-600">({queue.length})</span>
+              )}
             </h1>
-            <button onClick={() => fetchQueue()} className="text-sm text-emerald-600 border border-emerald-300 px-3 py-1 rounded-lg">
+            <button
+              onClick={() => fetchQueue()}
+              className="text-sm text-emerald-600 border border-emerald-300 px-3 py-1 rounded-lg"
+            >
               Refresh
             </button>
           </div>
+
           {lastRefresh && (
             <p className="text-xs text-gray-400 mb-4">
               Auto-refreshes every 15s · Last: {lastRefresh.toLocaleTimeString()}
             </p>
           )}
 
-          {loading && <p className="text-gray-400 text-center mt-10">Loading...</p>}
+          {loading && (
+            <p className="text-gray-400 text-center mt-10">Loading...</p>
+          )}
 
           {!loading && queue.length === 0 && (
             <p className="text-gray-400 text-center mt-10">No pending patients</p>
@@ -84,8 +124,11 @@ export default function DoctorQueuePage() {
 
           <div className="flex flex-col gap-3">
             {queue.map((p, idx) => (
-              <Link key={p.id} href={`/doctor/${p.id}`}
-                className="bg-white rounded-2xl shadow p-4 flex flex-col gap-1 hover:shadow-md active:scale-95 transition">
+              <Link
+                key={p.id}
+                href={`/doctor/${p.id}`}
+                className="bg-white rounded-2xl shadow p-4 flex flex-col gap-1 hover:shadow-md active:scale-95 transition"
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="bg-emerald-600 text-white text-sm font-bold w-7 h-7 rounded-full flex items-center justify-center">
@@ -98,8 +141,14 @@ export default function DoctorQueuePage() {
                   </span>
                 </div>
                 <span className="text-sm text-gray-500 ml-9">{p.patient_phone}</span>
-                {p.complaints && <span className="text-sm text-gray-600 mt-1 ml-9">&quot;{p.complaints}&quot;</span>}
-                <span className="text-xs text-gray-400 mt-1 ml-9">Token #{p.id} · {p.visit_date?.slice(0, 16)}</span>
+                {p.complaints && (
+                  <span className="text-sm text-gray-600 mt-1 ml-9">
+                    &quot;{p.complaints}&quot;
+                  </span>
+                )}
+                <span className="text-xs text-gray-400 mt-1 ml-9">
+                  Token #{p.id} · {p.visit_date?.slice(0, 16)}
+                </span>
               </Link>
             ))}
           </div>

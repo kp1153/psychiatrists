@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 const DEVELOPER_EMAIL = 'prasad.kamta@gmail.com';
 
 async function checkExpiry(session) {
+  if (session.expired) return false;
   if (session.email === DEVELOPER_EMAIL) return true;
   if (session.role !== 'doctor') return true;
   const [c] = await db.select().from(clinics).where(eq(clinics.id, session.clinic_id));
@@ -23,29 +24,23 @@ export async function PATCH(request) {
   if (!(await checkExpiry(session))) return NextResponse.json({ error: 'expired' }, { status: 403 });
 
   const body = await request.json();
-  const allowed = ['pin_receptionist', 'pin_pharmacy', 'name'];
+  const allowed = ['pin_receptionist', 'pin_pharmacy', 'name', 'doctor_name', 'qualification', 'clinic_address', 'clinic_phone'];
   const update = {};
   for (const key of allowed) {
     if (body[key] !== undefined) update[key] = body[key];
   }
 
-  await db.update(clinics)
-    .set(update)
-    .where(eq(clinics.id, session.clinic_id));
-
-  const [updated] = await db.select().from(clinics)
-    .where(eq(clinics.id, session.clinic_id));
-
+  await db.update(clinics).set(update).where(eq(clinics.id, session.clinic_id));
+  const [updated] = await db.select().from(clinics).where(eq(clinics.id, session.clinic_id));
   return NextResponse.json(updated);
 }
 
-export async function GET(request) {
+export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!(await checkExpiry(session))) return NextResponse.json({ error: 'expired' }, { status: 403 });
 
-  const result = await db.select().from(clinics)
-    .where(eq(clinics.id, session.clinic_id));
-
-  return NextResponse.json(result[0]);
+  const [result] = await db.select().from(clinics).where(eq(clinics.id, session.clinic_id));
+  if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  return NextResponse.json(result);
 }
