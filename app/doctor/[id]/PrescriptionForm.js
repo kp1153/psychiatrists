@@ -1,12 +1,11 @@
 "use client";
 import { useState, useMemo } from "react";
-import { MEDICINES_BY_CONDITION, CONDITIONS } from "@/lib/medicines";
+import { MEDICINES_BY_TIER, CONDITIONS, getMedicineDefaults } from "@/lib/medicines";
 
 const MEDICINE_TIMINGS = ["Morning", "Afternoon", "Evening", "Night", "HS", "SOS"];
 const DURATIONS = ["3 days", "5 days", "7 days", "10 days", "14 days", "1 month", "2 months", "3 months"];
 const FOOD_OPTIONS = ["After food", "Before food", "Empty stomach", "—"];
 
-const MSE_DEFAULT = { appearance: "", mood: "", affect: "", thought: "", perception: "", cognition: "", insight: "", judgement: "" };
 const MOOD_OPTIONS = ["Euthymic", "Depressed", "Elated", "Anxious", "Irritable", "Labile"];
 const AFFECT_OPTIONS = ["Normal", "Blunted", "Flat", "Restricted", "Labile", "Inappropriate"];
 const INSIGHT_OPTIONS = ["Grade I", "Grade II", "Grade III", "Grade IV", "Grade V", "Grade VI"];
@@ -19,8 +18,8 @@ function splitDoses(doseStr) {
 function doseOptionsFor(medName) {
   const base = (medName || "").toLowerCase().trim();
   for (const cond of CONDITIONS) {
-    const list = MEDICINES_BY_CONDITION[cond] || [];
-    const hit = list.find((m) => m.name.toLowerCase() === base);
+    const { latest, common } = MEDICINES_BY_TIER[cond];
+    const hit = [...latest, ...common].find((m) => m.name.toLowerCase() === base);
     if (hit) return splitDoses(hit.dose);
   }
   return [];
@@ -42,7 +41,8 @@ export default function PrescriptionForm({
   const [showPicker, setShowPicker] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedCondition, setSelectedCondition] = useState("All");
-  const [expandedKey, setExpandedKey] = useState(null);
+  const [tierTab, setTierTab] = useState("all");
+  const [pickedSalts, setPickedSalts] = useState({});
 
   function updateMSE(field, value) {
     setMse((prev) => ({ ...prev, [field]: value }));
@@ -73,13 +73,38 @@ export default function PrescriptionForm({
     });
   }
 
-  function addWithDose(med, chosenDose) {
-    const newEntry = { name: med.name, dose: chosenDose, timing: [], duration: "7 days", food: "After food" };
+  function togglePick(med) {
+    const key = med.name.toLowerCase();
+    setPickedSalts((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = med;
+      return next;
+    });
+  }
+
+  function addAllPicked() {
+    const toAdd = Object.values(pickedSalts);
+    if (toAdd.length === 0) return;
+    const newEntries = toAdd.map((m) => {
+      const firstDose = splitDoses(m.dose)[0] || "";
+      const def = getMedicineDefaults(m.name) || { timing: [], food: "After food", duration: "7 days" };
+      return {
+        name: m.name,
+        dose: firstDose,
+        timing: def.timing,
+        duration: def.duration,
+        food: def.food,
+      };
+    });
     setMedicines((prev) => {
       const isEmptyFirst = prev.length === 1 && !prev[0].name && !prev[0].dose && prev[0].timing.length === 0;
-      return isEmptyFirst ? [newEntry] : [...prev, newEntry];
+      const base = isEmptyFirst ? [] : prev;
+      const existing = new Set(base.map((m) => m.name.toLowerCase()));
+      const filtered = newEntries.filter((m) => !existing.has(m.name.toLowerCase()));
+      return [...base, ...filtered];
     });
-    setExpandedKey(null);
+    setPickedSalts({});
   }
 
   function quickFollowup(days) {
@@ -88,32 +113,38 @@ export default function PrescriptionForm({
     setFollowupDate(d.toISOString().slice(0, 10));
   }
 
-  const allMedicines = useMemo(() => {
+  const pickerList = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const conds = selectedCondition === "All" ? CONDITIONS : [selectedCondition];
     const arr = [];
-    for (const cond of CONDITIONS) {
-      for (const m of MEDICINES_BY_CONDITION[cond] || []) {
-        arr.push({ ...m, condition: cond });
+    for (const cond of conds) {
+      const { latest, common } = MEDICINES_BY_TIER[cond];
+      if (tierTab === "all" || tierTab === "latest") {
+        for (const m of latest) arr.push({ ...m, condition: cond, tier: "latest" });
+      }
+      if (tierTab === "all" || tierTab === "common") {
+        for (const m of common) arr.push({ ...m, condition: cond, tier: "common" });
       }
     }
-    return arr;
-  }, []);
-
-  const filteredPicker = useMemo(() => {
-    let list = selectedCondition === "All"
-      ? allMedicines
-      : (MEDICINES_BY_CONDITION[selectedCondition] || []).map((m) => ({ ...m, condition: selectedCondition }));
-    const q = search.trim().toLowerCase();
+    const dedup = {};
+    for (const m of arr) {
+      const k = `${m.name.toLowerCase()}|${m.condition}`;
+      if (!dedup[k]) dedup[k] = m;
+    }
+    let list = Object.values(dedup);
     if (q) list = list.filter((m) => m.name.toLowerCase().includes(q) || (m.class || "").toLowerCase().includes(q));
-    return list.slice(0, 80);
-  }, [allMedicines, selectedCondition, search]);
+    return list;
+  }, [selectedCondition, search, tierTab]);
 
   const addedNames = useMemo(() => {
     const s = new Set();
     for (const m of medicines) {
-      if (m.name) s.add(m.name.toLowerCase().split(" ")[0]);
+      if (m.name) s.add(m.name.toLowerCase());
     }
     return s;
   }, [medicines]);
+
+  const pickedCount = Object.keys(pickedSalts).length;
 
   const parseMeds = (raw) => {
     if (!raw) return [];
@@ -124,7 +155,7 @@ export default function PrescriptionForm({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-20">
 
       {/* Complaints */}
       <div className="bg-white rounded-2xl shadow p-4">
@@ -162,30 +193,21 @@ export default function PrescriptionForm({
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">{v.visit_date?.slice(0, 10)}</p>
-                      {v.complaints && <p className="text-xs text-gray-600 mt-1"><strong>C/O:</strong> {v.complaints}</p>}
-                      {v.diagnosis && <p className="text-xs text-gray-600"><strong>Dx:</strong> {v.diagnosis}</p>}
+                      {v.diagnosis && <p className="text-xs text-gray-500">{v.diagnosis}</p>}
                     </div>
-                    {pastMeds.length > 0 && (
-                      <button type="button" onClick={() => setMedicines(pastMeds)}
-                        className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-semibold shrink-0">
-                        ↻ Repeat Rx
-                      </button>
-                    )}
                   </div>
+                  {v.complaints && <p className="text-xs text-gray-600 mb-1"><span className="font-semibold">Complaints:</span> {v.complaints}</p>}
                   {pastMeds.length > 0 && (
-                    <table className="w-full text-xs mt-2">
-                      <tbody>
+                    <div className="mt-2">
+                      <p className="text-[11px] font-semibold text-gray-500 uppercase mb-1">Medicines</p>
+                      <ul className="text-xs text-gray-700 space-y-0.5">
                         {pastMeds.map((m, i) => (
-                          <tr key={i} className="border-b border-gray-100 last:border-0">
-                            <td className="py-1 pr-2 font-medium text-gray-700">{m.name}</td>
-                            <td className="py-1 pr-2 text-indigo-700">{m.dose}</td>
-                            <td className="py-1 pr-2 text-gray-600">{m.timing?.join("-") || "—"}</td>
-                            <td className="py-1 text-gray-500">{m.duration}</td>
-                          </tr>
+                          <li key={i}>• {m.name} {m.dose} — {(m.timing || []).join(", ")} ({m.duration})</li>
                         ))}
-                      </tbody>
-                    </table>
+                      </ul>
+                    </div>
                   )}
+                  {v.notes && <p className="text-xs text-gray-600 mt-2"><span className="font-semibold">Notes:</span> {v.notes}</p>}
                 </div>
               );
             })}
@@ -195,7 +217,7 @@ export default function PrescriptionForm({
 
       {/* MSE */}
       <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center">
           <label className="font-semibold text-gray-700">Mental Status Examination</label>
           <button type="button" onClick={() => setShowMSE((p) => !p)}
             className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-semibold">
@@ -283,7 +305,7 @@ export default function PrescriptionForm({
       {/* Medicine Picker */}
       <div className="bg-white rounded-2xl shadow p-4">
         <div className="flex justify-between items-center mb-3">
-          <label className="font-semibold text-gray-700">Add Medicine</label>
+          <label className="font-semibold text-gray-700">Add Medicines</label>
           <button type="button" onClick={() => setShowPicker((p) => !p)}
             className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-semibold">
             {showPicker ? "Hide" : "Show"}
@@ -292,8 +314,26 @@ export default function PrescriptionForm({
         {showPicker && (
           <>
             <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search salt or drug class..."
+              placeholder="Search salt name or class..."
               className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+
+            {/* Tier sub-tabs */}
+            <div className="flex gap-1 mb-2">
+              <button type="button" onClick={() => setTierTab("all")}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-semibold border ${tierTab === "all" ? "bg-gray-800 text-white border-gray-800" : "border-gray-300 text-gray-600"}`}>
+                All
+              </button>
+              <button type="button" onClick={() => setTierTab("latest")}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-semibold border ${tierTab === "latest" ? "bg-amber-500 text-white border-amber-500" : "border-gray-300 text-gray-600"}`}>
+                🆕 Latest
+              </button>
+              <button type="button" onClick={() => setTierTab("common")}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-semibold border ${tierTab === "common" ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-300 text-gray-600"}`}>
+                🔹 प्रचलित
+              </button>
+            </div>
+
+            {/* Condition tabs */}
             <div className="flex gap-1 overflow-x-auto mb-2 pb-1">
               <button type="button" onClick={() => setSelectedCondition("All")}
                 className={`text-xs px-3 py-1 rounded-full whitespace-nowrap border ${selectedCondition === "All" ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-300 text-gray-600"}`}>
@@ -306,10 +346,13 @@ export default function PrescriptionForm({
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-gray-500 mb-2">Tap medicine → choose dose</p>
+
+            <p className="text-[11px] text-gray-500 mb-2">Tick multiple salts → tap &quot;Add Selected&quot; once</p>
+
+            {/* Medicine list grouped by class */}
             {(() => {
               const grouped = {};
-              for (const med of filteredPicker) {
+              for (const med of pickerList) {
                 const cls = med.class || "Other";
                 if (!grouped[cls]) grouped[cls] = [];
                 grouped[cls].push(med);
@@ -322,42 +365,36 @@ export default function PrescriptionForm({
                   {Object.keys(grouped).map((cls) => (
                     <div key={cls}>
                       <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide mb-1 sticky top-0 bg-white py-1">{cls}</p>
-                      <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-1 gap-1.5">
                         {grouped[cls].map((med, idx) => {
-                          const key = `${med.condition}-${cls}-${med.name}-${idx}`;
-                          const saltAdded = addedNames.has(med.name.toLowerCase().split(" ")[0]);
-                          const isExpanded = expandedKey === key;
-                          const doses = splitDoses(med.dose);
+                          const key = `${med.name.toLowerCase()}`;
+                          const picked = !!pickedSalts[key];
+                          const already = addedNames.has(med.name.toLowerCase());
                           return (
-                            <div key={key} className={`border rounded-lg transition ${saltAdded ? "bg-emerald-50 border-emerald-300" : isExpanded ? "bg-indigo-50 border-indigo-400" : "border-gray-200"}`}>
-                              <button type="button" onClick={() => setExpandedKey(isExpanded ? null : key)} className="w-full text-left px-3 py-2">
-                                <div className="flex justify-between items-start gap-2">
-                                  <p className="font-semibold text-sm text-gray-800 truncate flex items-center gap-1">
-                                    {saltAdded && <span className="text-emerald-600">✓</span>}
-                                    {med.name}
-                                  </p>
-                                  <p className="text-[10px] text-gray-400 shrink-0">{med.condition}</p>
-                                </div>
-                              </button>
-                              {isExpanded && doses.length > 0 && (
-                                <div className="px-3 pb-3 pt-1 border-t border-indigo-200">
-                                  <div className="flex flex-wrap gap-1">
-                                    {doses.map((d) => (
-                                      <button key={d} type="button" onClick={() => addWithDose(med, d)}
-                                        className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold">
-                                        {d}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {isExpanded && doses.length === 0 && (
-                                <div className="px-3 pb-3 pt-1 border-t border-indigo-200">
-                                  <button type="button" onClick={() => addWithDose(med, "")}
-                                    className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold">Add</button>
-                                </div>
-                              )}
-                            </div>
+                            <button
+                              key={`${cls}-${med.name}-${idx}`}
+                              type="button"
+                              onClick={() => togglePick(med)}
+                              disabled={already}
+                              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition ${
+                                already ? "bg-emerald-50 border-emerald-300 opacity-70 cursor-not-allowed" :
+                                picked ? "bg-indigo-600 border-indigo-600 text-white" :
+                                "border-gray-200 bg-white"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-4 h-4 flex items-center justify-center rounded border text-[10px] shrink-0 ${
+                                  already ? "bg-emerald-500 border-emerald-500 text-white" :
+                                  picked ? "bg-white border-white text-indigo-600" :
+                                  "border-gray-300"
+                                }`}>
+                                  {(picked || already) && "✓"}
+                                </span>
+                                <span className="text-sm font-semibold truncate">{med.name}</span>
+                                {med.tier === "latest" && <span className="text-[9px] px-1 rounded bg-amber-400 text-white shrink-0">NEW</span>}
+                              </div>
+                              <span className={`text-[10px] shrink-0 ${picked ? "text-indigo-100" : "text-gray-400"}`}>{med.condition}</span>
+                            </button>
                           );
                         })}
                       </div>
@@ -366,6 +403,18 @@ export default function PrescriptionForm({
                 </div>
               );
             })()}
+
+            {/* Sticky Add Selected bar */}
+            {pickedCount > 0 && (
+              <div className="sticky bottom-0 mt-3 -mx-4 -mb-4 px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
+                <button type="button" onClick={() => setPickedSalts({})}
+                  className="px-3 py-2 text-xs border border-gray-300 rounded-lg text-gray-600">Clear</button>
+                <button type="button" onClick={addAllPicked}
+                  className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-semibold text-sm">
+                  Add {pickedCount} Selected →
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -374,7 +423,7 @@ export default function PrescriptionForm({
       <div className="bg-white rounded-2xl shadow p-4">
         <div className="flex justify-between items-center mb-3">
           <label className="font-semibold text-gray-700">Prescription ({medicines.filter((m) => m.name).length})</label>
-          <button onClick={addMedicine} className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-semibold">+ Manual Add</button>
+          <button onClick={addMedicine} className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-semibold">+ Manual</button>
         </div>
         <div className="flex flex-col gap-4">
           {medicines.map((med, i) => {
