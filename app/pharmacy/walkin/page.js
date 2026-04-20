@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
+import { MEDICINES_BY_CONDITION, CONDITIONS } from '@/lib/medicines';
 
 export default function WalkInPage() {
   const router = useRouter();
@@ -10,17 +11,18 @@ export default function WalkInPage() {
   const [clinicInfo, setClinicInfo] = useState(null);
   const [loadingInit, setLoadingInit] = useState(true);
 
-  // Patient (optional)
   const [patientName, setPatientName] = useState('');
   const [patientPhone, setPatientPhone] = useState('');
 
-  // Medicine rows
   const [medicines, setMedicines] = useState([
     { salt: '', brand: '', qty: '1', price: '' },
   ]);
 
-  // UI states
-  const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(null); // row index jiska picker khula hai
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [newSaltMode, setNewSaltMode] = useState(false);
+  const [newSaltInput, setNewSaltInput] = useState('');
+
   const [printMode, setPrintMode] = useState(false);
   const [billDate] = useState(new Date().toISOString());
 
@@ -43,20 +45,39 @@ export default function WalkInPage() {
     load();
   }, []);
 
-  // When salt changes → auto-fill brand + price from brandsMap
-  function handleSaltChange(i, value) {
+  // सारे salts (medicines.js से सभी doses + brandsMap से manually added)
+  const allSalts = useMemo(() => {
+    const set = new Set();
+    for (const c of CONDITIONS) {
+      for (const m of MEDICINES_BY_CONDITION[c] || []) {
+        const doses = (m.dose || '').split(',').map((s) => s.trim()).filter(Boolean);
+        if (doses.length === 0) set.add(m.name);
+        else for (const d of doses) set.add(`${m.name} ${d}`);
+      }
+    }
+    for (const k of Object.keys(brandsMap)) set.add(k);
+    return Array.from(set).sort();
+  }, [brandsMap]);
+
+  const filteredSalts = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    if (!q) return allSalts.slice(0, 50);
+    return allSalts.filter((s) => s.toLowerCase().includes(q)).slice(0, 50);
+  }, [allSalts, pickerSearch]);
+
+  function pickSalt(rowIndex, saltValue) {
+    const mapped = brandsMap[saltValue] || {};
     setMedicines((prev) =>
-      prev.map((m, idx) => {
-        if (idx !== i) return m;
-        const mapped = brandsMap[value] || {};
-        return {
-          ...m,
-          salt: value,
-          brand: mapped.brand || m.brand,
-          price: mapped.price || m.price,
-        };
-      })
+      prev.map((m, idx) =>
+        idx === rowIndex
+          ? { ...m, salt: saltValue, brand: mapped.brand || '', price: mapped.price || '' }
+          : m
+      )
     );
+    setPickerOpen(null);
+    setPickerSearch('');
+    setNewSaltMode(false);
+    setNewSaltInput('');
   }
 
   function updateField(i, field, value) {
@@ -70,7 +91,42 @@ export default function WalkInPage() {
   }
 
   function removeRow(i) {
-    setMedicines((prev) => prev.filter((_, idx) => idx !== i));
+    setMedicines((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)));
+  }
+
+  // Salt-brand mapping save (inline)
+  async function saveBrandMapping(i) {
+    const row = medicines[i];
+    if (!row.salt || !row.brand) {
+      alert('Salt और Brand दोनों ज़रूरी हैं');
+      return;
+    }
+    const updated = {
+      ...brandsMap,
+      [row.salt]: { brand: row.brand.trim(), price: (row.price || '').trim() },
+    };
+    const res = await fetch('/api/brands', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brands: updated }),
+    });
+    if (!res.ok) { alert('Save failed'); return; }
+    setBrandsMap(updated);
+    alert('✓ Brand saved — अगली बार auto-fill हो जाएगा');
+  }
+
+  async function addNewSaltToLibrary() {
+    const salt = newSaltInput.trim();
+    if (!salt) { alert('Salt name डालो'); return; }
+    const updated = { ...brandsMap, [salt]: brandsMap[salt] || { brand: '', price: '' } };
+    const res = await fetch('/api/brands', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brands: updated }),
+    });
+    if (!res.ok) { alert('Save failed'); return; }
+    setBrandsMap(updated);
+    pickSalt(pickerOpen, salt);
   }
 
   const total = useMemo(() => {
@@ -101,7 +157,6 @@ export default function WalkInPage() {
         }
       `}</style>
 
-      {/* ── SCREEN UI ── */}
       <main className="min-h-screen bg-orange-50 p-4 pb-28 no-print">
         <div className="max-w-md mx-auto">
           <button
@@ -113,9 +168,11 @@ export default function WalkInPage() {
 
           <h1 className="text-2xl font-bold text-orange-800 mb-4">Walk-in Sale 🛒</h1>
 
-          {/* Patient details (optional) */}
+          {/* Patient details */}
           <div className="bg-white rounded-2xl shadow p-4 mb-4 flex flex-col gap-3">
-            <p className="font-semibold text-gray-700 text-sm">Patient Details <span className="text-gray-400 font-normal">(optional)</span></p>
+            <p className="font-semibold text-gray-700 text-sm">
+              Patient Details <span className="text-gray-400 font-normal">(optional)</span>
+            </p>
             <input
               type="text"
               value={patientName}
@@ -138,82 +195,100 @@ export default function WalkInPage() {
             <p className="font-semibold text-gray-700 mb-3">Medicines</p>
 
             <div className="flex flex-col gap-4">
-              {medicines.map((med, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs font-semibold text-gray-500">Item {i + 1}</p>
-                    {medicines.length > 1 && (
+              {medicines.map((med, i) => {
+                const hasMapping = !!brandsMap[med.salt];
+                return (
+                  <div key={i} className="border border-gray-200 rounded-xl p-3 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs font-semibold text-gray-500">Item {i + 1}</p>
+                      {medicines.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeRow(i)}
+                          className="text-xs text-red-400"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Salt dropdown trigger */}
+                    <div>
+                      <label className="text-[10px] text-gray-400">Salt / Generic</label>
                       <button
                         type="button"
-                        onClick={() => removeRow(i)}
-                        className="text-xs text-red-400"
+                        onClick={() => {
+                          setPickerOpen(i);
+                          setPickerSearch('');
+                          setNewSaltMode(false);
+                        }}
+                        className={`w-full text-left border rounded-lg px-3 py-2 text-sm ${
+                          med.salt ? 'border-orange-300 bg-orange-50 text-gray-800' : 'border-gray-200 text-gray-400'
+                        }`}
                       >
-                        Remove
+                        {med.salt || 'Tap to select salt...'}
                       </button>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Salt — autocomplete from brandsMap keys */}
-                  <div>
-                    <label className="text-[10px] text-gray-400">Salt / Generic name</label>
-                    <input
-                      list={`salts-${i}`}
-                      type="text"
-                      value={med.salt}
-                      onChange={(e) => handleSaltChange(i, e.target.value)}
-                      placeholder="e.g. Olanzapine 5mg"
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
-                    />
-                    <datalist id={`salts-${i}`}>
-                      {Object.keys(brandsMap).map((s) => (
-                        <option key={s} value={s} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-gray-400">Brand name</label>
-                    <input
-                      type="text"
-                      value={med.brand}
-                      onChange={(e) => updateField(i, 'brand', e.target.value)}
-                      placeholder="e.g. Oleanz 5"
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <div className="w-24">
-                      <label className="text-[10px] text-gray-400">Qty</label>
+                    {/* Brand */}
+                    <div>
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] text-gray-400">Brand name</label>
+                        {med.salt && med.brand && !hasMapping && (
+                          <button
+                            type="button"
+                            onClick={() => saveBrandMapping(i)}
+                            className="text-[10px] text-indigo-600 font-semibold"
+                          >
+                            💾 Save as my brand
+                          </button>
+                        )}
+                        {hasMapping && (
+                          <span className="text-[10px] text-emerald-600">✓ Saved</span>
+                        )}
+                      </div>
                       <input
                         type="text"
-                        value={med.qty}
-                        onChange={(e) => updateField(i, 'qty', e.target.value)}
-                        inputMode="decimal"
-                        placeholder="1"
+                        value={med.brand}
+                        onChange={(e) => updateField(i, 'brand', e.target.value)}
+                        placeholder="e.g. Oleanz 5"
                         className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
                       />
                     </div>
-                    <div className="flex-1">
-                      <label className="text-[10px] text-gray-400">₹ Price (per unit)</label>
-                      <input
-                        type="text"
-                        value={med.price}
-                        onChange={(e) => updateField(i, 'price', e.target.value)}
-                        inputMode="decimal"
-                        placeholder="0"
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
-                      />
-                    </div>
-                    <div className="w-24 flex flex-col justify-end">
-                      <label className="text-[10px] text-gray-400">Amount</label>
-                      <p className="border border-gray-100 bg-gray-50 rounded-lg px-2 py-1.5 text-sm text-right font-semibold text-emerald-700">
-                        ₹{((parseFloat(med.price) || 0) * (parseFloat(med.qty) || 1)).toFixed(2)}
-                      </p>
+
+                    <div className="flex gap-2">
+                      <div className="w-20">
+                        <label className="text-[10px] text-gray-400">Qty</label>
+                        <input
+                          type="text"
+                          value={med.qty}
+                          onChange={(e) => updateField(i, 'qty', e.target.value)}
+                          inputMode="decimal"
+                          placeholder="1"
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-400">₹ Price</label>
+                        <input
+                          type="text"
+                          value={med.price}
+                          onChange={(e) => updateField(i, 'price', e.target.value)}
+                          inputMode="decimal"
+                          placeholder="0"
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        />
+                      </div>
+                      <div className="w-24 flex flex-col justify-end">
+                        <label className="text-[10px] text-gray-400">Amount</label>
+                        <p className="border border-gray-100 bg-gray-50 rounded-lg px-2 py-1.5 text-sm text-right font-semibold text-emerald-700">
+                          ₹{((parseFloat(med.price) || 0) * (parseFloat(med.qty) || 1)).toFixed(2)}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <button
@@ -232,7 +307,6 @@ export default function WalkInPage() {
             )}
           </div>
 
-          {/* Print button */}
           <button
             onClick={handlePrint}
             className="w-full bg-gray-800 text-white py-3 rounded-2xl font-semibold text-base"
@@ -242,9 +316,106 @@ export default function WalkInPage() {
         </div>
       </main>
 
-      {/* ── PRINT LAYOUT ── */}
+      {/* Salt Picker Modal */}
+      {pickerOpen !== null && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center no-print"
+             onClick={() => setPickerOpen(null)}>
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col"
+               onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <p className="font-bold text-gray-800">Select Salt</p>
+              <button onClick={() => setPickerOpen(null)} className="text-gray-400 text-xl">×</button>
+            </div>
+
+            {!newSaltMode ? (
+              <>
+                <div className="p-3 border-b border-gray-100">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="Search salt..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                  {filteredSalts.length === 0 ? (
+                    <p className="text-center text-gray-400 text-sm py-8">
+                      कोई match नहीं — नीचे &quot;+ New Salt&quot; दबाओ
+                    </p>
+                  ) : (
+                    filteredSalts.map((s) => {
+                      const mapped = brandsMap[s];
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => pickSalt(pickerOpen, s)}
+                          className="w-full text-left px-4 py-2.5 border-b border-gray-100 hover:bg-orange-50 flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="text-sm text-gray-800">{s}</p>
+                            {mapped?.brand && (
+                              <p className="text-[11px] text-indigo-600">→ {mapped.brand} {mapped.price ? `(₹${mapped.price})` : ''}</p>
+                            )}
+                          </div>
+                          {mapped?.brand && <span className="text-[10px] text-emerald-600">✓</span>}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => { setNewSaltMode(true); setNewSaltInput(pickerSearch); }}
+                    className="w-full border-2 border-dashed border-indigo-300 text-indigo-600 py-2 rounded-lg text-sm font-semibold"
+                  >
+                    + Add New Salt
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="p-4 flex flex-col gap-3">
+                <label className="text-xs text-gray-500">New salt name (with dose)</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={newSaltInput}
+                  onChange={(e) => setNewSaltInput(e.target.value)}
+                  placeholder="e.g. Pregabalin 75mg"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <p className="text-[11px] text-gray-500">
+                  ये नई salt आपकी personal list में save हो जाएगी, अगली बार dropdown में दिखेगी
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setNewSaltMode(false); setNewSaltInput(''); }}
+                    className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addNewSaltToLibrary}
+                    className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-semibold"
+                  >
+                    Save & Select
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PRINT LAYOUT */}
       <div className="print-only p-6">
-        {/* Letterhead */}
         <div className="flex items-start justify-between mb-4 border-b-2 border-gray-800 pb-4">
           <div className="flex items-center gap-3">
             {clinicInfo?.clinic_logo && (
@@ -277,7 +448,6 @@ export default function WalkInPage() {
           </div>
         </div>
 
-        {/* Patient */}
         {(patientName || patientPhone) && (
           <div className="mb-4 text-sm">
             {patientName && <p><strong>Patient:</strong> {patientName}</p>}
@@ -285,7 +455,6 @@ export default function WalkInPage() {
           </div>
         )}
 
-        {/* Table */}
         <table className="w-full text-sm border-collapse mb-4">
           <thead>
             <tr className="bg-gray-100">
