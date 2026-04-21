@@ -305,7 +305,7 @@ function SettingsContent() {
           {saving ? "Saving..." : "Save Settings"}
         </button>
 
-        
+        <a
           href="/api/auth/logout"
           className="block text-center text-sm text-red-400 hover:text-red-600 transition"
         >
