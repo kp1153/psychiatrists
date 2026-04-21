@@ -17,6 +17,9 @@ const NAV_BY_ROLE = {
     { href: '/pharmacy/walkin', label: 'Walk-in', icon: '🛒' },
     { href: '/pharmacy/brands', label: 'Brands', icon: '🏷️' },
   ],
+  psychologist: [
+    { href: '/psychologist', label: 'Queue', icon: '🧠' },
+  ],
 };
 
 export default function BottomNav({ role }) {
@@ -33,7 +36,7 @@ export default function BottomNav({ role }) {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex-1 flex flex-col items-center justify-center py-2 text-[11px] font-semibold transition ${active ? 'text-emerald-600' : 'text-gray-500'}`}
+            className={`flex-1 flex flex-col items-center justify-center py-2 text-[11px] font-semibold transition ${active ? 'text-purple-600' : 'text-gray-500'}`}
           >
             <span className="text-xl leading-none mb-0.5">{item.icon}</span>
             <span>{item.label}</span>

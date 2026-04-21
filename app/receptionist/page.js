@@ -11,12 +11,18 @@ export default function ReceptionistPage() {
   const [error, setError] = useState('');
   const [lookup, setLookup] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [hasPsychologist, setHasPsychologist] = useState(false);
 
+  // Fetch clinic settings to know psychologist status
   useEffect(() => {
-    if (!/^\d{10}$/.test(phone)) {
-      setLookup(null);
-      return;
-    }
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setHasPsychologist(!!data.has_psychologist); });
+  }, []);
+
+  // Phone lookup
+  useEffect(() => {
+    if (!/^\d{10}$/.test(phone)) { setLookup(null); return; }
     let cancelled = false;
     setSearching(true);
     const t = setTimeout(async () => {
@@ -25,30 +31,18 @@ export default function ReceptionistPage() {
         if (cancelled) return;
         if (res.ok) {
           const arr = await res.json();
-          if (arr.length > 0) {
-            setLookup(arr[0]);
-            setName((prev) => prev || arr[0].name);
-          } else {
-            setLookup(null);
-          }
+          if (arr.length > 0) { setLookup(arr[0]); setName(prev => prev || arr[0].name); }
+          else setLookup(null);
         }
       } catch {}
-      finally {
-        if (!cancelled) setSearching(false);
-      }
+      finally { if (!cancelled) setSearching(false); }
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
   }, [phone]);
 
   async function handleSubmit() {
-    if (!name.trim() || !phone.trim()) {
-      setError('Name and phone are required');
-      return;
-    }
-    if (!/^\d{10}$/.test(phone)) {
-      setError('Phone must be 10 digits');
-      return;
-    }
+    if (!name.trim() || !phone.trim()) { setError('Name and phone are required'); return; }
+    if (!/^\d{10}$/.test(phone)) { setError('Phone must be 10 digits'); return; }
 
     setLoading(true);
     setError('');
@@ -61,31 +55,31 @@ export default function ReceptionistPage() {
         body: JSON.stringify({ name: name.trim(), phone: phone.trim() }),
       });
       if (!patientRes.ok) {
-        if (patientRes.status === 401) { window.location.href = '/login'; return; }
-        if (patientRes.status === 403) { window.location.href = '/expired'; return; }
-        setError('Failed to register patient');
-        return;
+        if (patientRes.status === 401) { window.location.href = '/receptionist/login'; return; }
+        setError('Failed to register patient'); return;
       }
       const patient = await patientRes.json();
+
+      // Status depends on whether clinic has psychologist
+      const initialStatus = hasPsychologist ? 'psychologist' : 'waiting';
 
       const prescRes = await fetch('/api/prescriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient_id: patient.id, complaints: complaints.trim() }),
+        body: JSON.stringify({
+          patient_id: patient.id,
+          complaints: complaints.trim(),
+          status: initialStatus,
+        }),
       });
       if (!prescRes.ok) {
-        if (prescRes.status === 401) { window.location.href = '/login'; return; }
-        if (prescRes.status === 403) { window.location.href = '/expired'; return; }
-        setError('Failed to create prescription');
-        return;
+        if (prescRes.status === 401) { window.location.href = '/receptionist/login'; return; }
+        setError('Failed to create entry'); return;
       }
       const prescription = await prescRes.json();
 
-      setSuccess({ patient, prescription, isReturning: !!lookup });
-      setName('');
-      setPhone('');
-      setComplaints('');
-      setLookup(null);
+      setSuccess({ patient, prescription, isReturning: !!lookup, hasPsychologist });
+      setName(''); setPhone(''); setComplaints(''); setLookup(null);
     } catch {
       setError('Something went wrong. Try again.');
     } finally {
@@ -100,6 +94,7 @@ export default function ReceptionistPage() {
           <h1 className="text-2xl font-bold text-indigo-800 mb-6 mt-4">New Patient Entry</h1>
 
           <div className="bg-white rounded-2xl shadow p-5 flex flex-col gap-4">
+            {/* Phone */}
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">Mobile Number</label>
               <input
@@ -124,6 +119,7 @@ export default function ReceptionistPage() {
               )}
             </div>
 
+            {/* Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">Patient Name</label>
               <input
@@ -135,8 +131,11 @@ export default function ReceptionistPage() {
               />
             </div>
 
+            {/* Complaints */}
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Chief Complaints <span className="text-gray-400 font-normal">(optional)</span></label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">
+                Chief Complaints <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
               <textarea
                 value={complaints}
                 onChange={e => setComplaints(e.target.value)}
@@ -146,6 +145,14 @@ export default function ReceptionistPage() {
               />
             </div>
 
+            {/* Next stop indicator */}
+            <div className="bg-gray-50 rounded-xl px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
+              <span>Next stop:</span>
+              <span className="font-semibold text-indigo-700">
+                {hasPsychologist ? '🧠 Psychologist' : '🩺 Doctor'}
+              </span>
+            </div>
+
             {error && <p className="text-red-500 text-sm">{error}</p>}
 
             {success && (
@@ -153,7 +160,9 @@ export default function ReceptionistPage() {
                 <p className="font-semibold">✓ Token #{success.prescription.id} created</p>
                 <p>{success.patient.name} — {success.patient.phone}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {success.isReturning ? 'Returning patient — sent to doctor queue' : 'New patient — sent to doctor queue'}
+                  {success.hasPsychologist
+                    ? '→ Sent to Psychologist queue'
+                    : '→ Sent to Doctor queue'}
                 </p>
               </div>
             )}

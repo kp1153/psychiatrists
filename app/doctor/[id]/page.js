@@ -35,6 +35,7 @@ export default function DoctorPrescriptionPage() {
   const [patient, setPatient] = useState(null);
   const [clinic, setClinic] = useState(null);
   const [history, setHistory] = useState([]);
+  const [assessment, setAssessment] = useState(null);
 
   const [complaints, setComplaints] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -64,6 +65,13 @@ export default function DoctorPrescriptionPage() {
       if (data.medicines) {
         const parsed = parseMeds(data.medicines);
         if (parsed.length > 0) setMedicines(parsed);
+      }
+
+      // Assessment fetch
+      const aRes = await fetch(`/api/doctor/assessment?prescription_id=${id}`);
+      if (aRes.ok) {
+        const aData = await aRes.json();
+        if (aData) setAssessment(aData);
       }
 
       const qRes = await fetch(`/api/prescriptions?patient_id=${data.patient_id}`);
@@ -123,6 +131,7 @@ export default function DoctorPrescriptionPage() {
             ← Back to Queue
           </button>
 
+          {/* Patient Card */}
           <div className="bg-white rounded-2xl shadow p-4 mb-4">
             <div className="flex justify-between items-start">
               <div>
@@ -132,6 +141,47 @@ export default function DoctorPrescriptionPage() {
               <span className="text-xs text-gray-400">Token #{prescription.id}</span>
             </div>
           </div>
+
+          {/* Psychologist Assessment Card */}
+          {assessment && (
+            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 mb-4">
+              <p className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                🧠 Psychologist Assessment
+              </p>
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 w-24 flex-shrink-0">Mood</span>
+                  <div className="flex items-center gap-2 flex-1">
+                    <div className="flex-1 bg-purple-100 rounded-full h-2">
+                      <div
+                        className="bg-purple-500 h-2 rounded-full"
+                        style={{ width: `${(assessment.mood / 10) * 100}%` }}
+                      />
+                    </div>
+                    <span className="font-bold text-purple-700">{assessment.mood}/10</span>
+                  </div>
+                </div>
+                {assessment.history && (
+                  <div>
+                    <span className="text-gray-500 text-xs">History</span>
+                    <p className="text-gray-800 mt-0.5 bg-white rounded-xl px-3 py-2 text-xs">{assessment.history}</p>
+                  </div>
+                )}
+                {assessment.symptoms && (
+                  <div>
+                    <span className="text-gray-500 text-xs">Symptoms</span>
+                    <p className="text-gray-800 mt-0.5 bg-white rounded-xl px-3 py-2 text-xs">{assessment.symptoms}</p>
+                  </div>
+                )}
+                {assessment.notes && (
+                  <div>
+                    <span className="text-gray-500 text-xs">Notes</span>
+                    <p className="text-gray-800 mt-0.5 bg-white rounded-xl px-3 py-2 text-xs">{assessment.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <PrescriptionForm
             complaints={complaints} setComplaints={setComplaints}

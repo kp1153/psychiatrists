@@ -25,9 +25,9 @@ export async function PATCH(request) {
 
   const body = await request.json();
   const allowed = [
-    'pin_receptionist', 'pin_pharmacy', 'name',
-    'doctor_name', 'qualification', 'clinic_address', 'clinic_phone',
-    'clinic_logo',
+    'pin_receptionist', 'pin_pharmacy', 'pin_psychologist',
+    'has_psychologist', 'name', 'doctor_name', 'qualification',
+    'clinic_address', 'clinic_phone', 'clinic_logo',
   ];
   const update = {};
   for (const key of allowed) {

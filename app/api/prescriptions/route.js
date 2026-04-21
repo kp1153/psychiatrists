@@ -58,14 +58,21 @@ export async function POST(request) {
   if (!(await checkExpiry(session))) return NextResponse.json({ error: 'expired' }, { status: 403 });
 
   const clinic_id = session.clinic_id;
-  const { patient_id, complaints } = await request.json();
+  const { patient_id, complaints, status } = await request.json();
 
-  if (!patient_id) {
+  if (!patient_id)
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-  }
+
+  const initialStatus = status || 'waiting';
 
   const result = await db.insert(prescriptions)
-    .values({ patient_id, complaints: complaints || '', clinic_id });
+    .values({ patient_id, complaints: complaints || '', clinic_id, status: initialStatus });
 
-  return NextResponse.json({ id: Number(result.lastInsertRowid), patient_id, complaints: complaints || '', clinic_id });
+  return NextResponse.json({
+    id: Number(result.lastInsertRowid),
+    patient_id,
+    complaints: complaints || '',
+    clinic_id,
+    status: initialStatus,
+  });
 }

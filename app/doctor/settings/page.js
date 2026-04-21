@@ -16,8 +16,11 @@ function SettingsContent() {
   const [clinicPhone, setClinicPhone] = useState("");
   const [pinR, setPinR] = useState("");
   const [pinP, setPinP] = useState("");
+  const [pinPsy, setPinPsy] = useState("");
   const [showPinR, setShowPinR] = useState(false);
   const [showPinP, setShowPinP] = useState(false);
+  const [showPinPsy, setShowPinPsy] = useState(false);
+  const [hasPsychologist, setHasPsychologist] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [logo, setLogo] = useState("");
@@ -25,14 +28,8 @@ function SettingsContent() {
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => {
-        if (r.status === 401) {
-          window.location.href = "/login";
-          return null;
-        }
-        if (r.status === 403) {
-          window.location.href = "/expired";
-          return null;
-        }
+        if (r.status === 401) { window.location.href = "/login"; return null; }
+        if (r.status === 403) { window.location.href = "/expired"; return null; }
         return r.json();
       })
       .then((data) => {
@@ -45,6 +42,8 @@ function SettingsContent() {
         setClinicPhone(data.clinic_phone || "");
         setPinR(data.pin_receptionist || "");
         setPinP(data.pin_pharmacy || "");
+        setPinPsy(data.pin_psychologist || "");
+        setHasPsychologist(!!data.has_psychologist);
         setLogo(data.clinic_logo || "");
       });
   }, []);
@@ -63,7 +62,11 @@ function SettingsContent() {
 
   async function handleSave() {
     if (pinR.length !== 4 || pinP.length !== 4) {
-      alert("PINs must be 4 digits");
+      alert("Receptionist and Pharmacy PINs must be 4 digits");
+      return;
+    }
+    if (hasPsychologist && pinPsy.length !== 4) {
+      alert("Psychologist PIN must be 4 digits");
       return;
     }
     if (pinR === "1234" || pinP === "5678") {
@@ -82,18 +85,14 @@ function SettingsContent() {
         clinic_phone: clinicPhone,
         pin_receptionist: pinR,
         pin_pharmacy: pinP,
+        pin_psychologist: pinPsy,
+        has_psychologist: hasPsychologist,
         clinic_logo: logo,
       }),
     });
     setSaving(false);
-    if (!res.ok) {
-      alert("Save failed. Try again.");
-      return;
-    }
-    if (isFirst) {
-      window.location.href = "/doctor";
-      return;
-    }
+    if (!res.ok) { alert("Save failed. Try again."); return; }
+    if (isFirst) { window.location.href = "/doctor"; return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -130,15 +129,8 @@ function SettingsContent() {
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-6 cursor-pointer hover:border-emerald-400 transition">
               <span className="text-2xl mb-1">🖼️</span>
               <span className="text-sm text-gray-500">Tap to upload logo</span>
-              <span className="text-xs text-gray-400 mt-1">
-                Max 200KB · PNG/JPG
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleLogoChange}
-              />
+              <span className="text-xs text-gray-400 mt-1">Max 200KB · PNG/JPG</span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
             </label>
           )}
         </div>
@@ -201,18 +193,18 @@ function SettingsContent() {
           </div>
         </div>
 
-        {/* PINs */}
+        {/* Staff PINs */}
         <div className="bg-white rounded-2xl shadow p-4 mb-4 flex flex-col gap-3">
           <p className="font-semibold text-gray-700">Staff PINs</p>
+
+          {/* Receptionist PIN */}
           <div>
             <label className="text-xs text-gray-500">Receptionist PIN</label>
             <div className="flex gap-2 mt-1">
               <input
                 type={showPinR ? "text" : "password"}
                 value={pinR}
-                onChange={(e) =>
-                  setPinR(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
+                onChange={(e) => setPinR(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 maxLength={4}
                 inputMode="numeric"
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -220,21 +212,22 @@ function SettingsContent() {
               <button
                 type="button"
                 onClick={() => setShowPinR((p) => !p)}
-                className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3"
+                className="text-lg px-3 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50"
+                aria-label={showPinR ? "Hide PIN" : "Show PIN"}
               >
-                {showPinR ? "Hide" : "Show"}
+                {showPinR ? "🙈" : "👁️"}
               </button>
             </div>
           </div>
+
+          {/* Pharmacy PIN */}
           <div>
             <label className="text-xs text-gray-500">Pharmacy PIN</label>
             <div className="flex gap-2 mt-1">
               <input
                 type={showPinP ? "text" : "password"}
                 value={pinP}
-                onChange={(e) =>
-                  setPinP(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
+                onChange={(e) => setPinP(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 maxLength={4}
                 inputMode="numeric"
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -242,11 +235,59 @@ function SettingsContent() {
               <button
                 type="button"
                 onClick={() => setShowPinP((p) => !p)}
-                className="text-xs text-gray-500 border border-gray-200 rounded-xl px-3"
+                className="text-lg px-3 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50"
+                aria-label={showPinP ? "Hide PIN" : "Show PIN"}
               >
-                {showPinP ? "Hide" : "Show"}
+                {showPinP ? "🙈" : "👁️"}
               </button>
             </div>
+          </div>
+
+          {/* Psychologist Toggle */}
+          <div className="border-t border-gray-100 pt-3 mt-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Psychologist</p>
+                <p className="text-xs text-gray-400">Enable if this clinic has a psychologist</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHasPsychologist((p) => !p)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  hasPsychologist ? "bg-emerald-500" : "bg-gray-200"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    hasPsychologist ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {hasPsychologist && (
+              <div className="mt-3">
+                <label className="text-xs text-gray-500">Psychologist PIN</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    type={showPinPsy ? "text" : "password"}
+                    value={pinPsy}
+                    onChange={(e) => setPinPsy(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    maxLength={4}
+                    inputMode="numeric"
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPinPsy((p) => !p)}
+                    className="text-lg px-3 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50"
+                    aria-label={showPinPsy ? "Hide PIN" : "Show PIN"}
+                  >
+                    {showPinPsy ? "🙈" : "👁️"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -264,7 +305,7 @@ function SettingsContent() {
           {saving ? "Saving..." : "Save Settings"}
         </button>
 
-        <a
+        
           href="/api/auth/logout"
           className="block text-center text-sm text-red-400 hover:text-red-600 transition"
         >
@@ -277,9 +318,7 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense
-      fallback={<p className="text-center mt-20 text-gray-400">Loading...</p>}
-    >
+    <Suspense fallback={<p className="text-center mt-20 text-gray-400">Loading...</p>}>
       <SettingsContent />
       <BottomNav role="doctor" />
     </Suspense>
