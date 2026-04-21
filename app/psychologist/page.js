@@ -39,7 +39,7 @@ export default function PsychologistPage() {
 
           <div className="flex flex-col gap-3">
             {queue.map((p, i) => (
-              
+              <a
                 key={p.id}
                 href={`/psychologist/${p.id}`}
                 className="bg-white rounded-2xl shadow p-4 flex items-center gap-4 active:scale-95 transition"
