@@ -6,17 +6,21 @@ export default function Home() {
       <h1 className="text-3xl font-bold text-indigo-800 text-center">Clinic Management</h1>
       <p className="text-gray-500">Select your role to continue</p>
       <div className="grid grid-cols-1 gap-4 w-full max-w-xs">
-        <Link href="/receptionist"
+        <Link href="/receptionist/login"
           className="bg-indigo-600 text-white text-center py-4 px-6 rounded-2xl text-lg font-semibold shadow hover:bg-indigo-700 active:scale-95 transition">
           Receptionist
         </Link>
-        <Link href="/doctor"
+        <Link href="/login"
           className="bg-emerald-600 text-white text-center py-4 px-6 rounded-2xl text-lg font-semibold shadow hover:bg-emerald-700 active:scale-95 transition">
           Doctor
         </Link>
-        <Link href="/pharmacy"
+        <Link href="/pharmacy/login"
           className="bg-orange-500 text-white text-center py-4 px-6 rounded-2xl text-lg font-semibold shadow hover:bg-orange-600 active:scale-95 transition">
           Pharmacy
+        </Link>
+        <Link href="/psychologist/login"
+          className="bg-purple-600 text-white text-center py-4 px-6 rounded-2xl text-lg font-semibold shadow hover:bg-purple-700 active:scale-95 transition">
+          Psychologist
         </Link>
       </div>
     </main>
